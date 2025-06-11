@@ -84,7 +84,7 @@ npm start
 ### 步驟 2: 下載專案（首次使用）
 在終端機中輸入：
 ```bash
-git clone https://github.com/your-username/auto-re-check.git
+git clone https://github.com/loliboso/auto-re-check.git
 cd auto-re-check
 ```
 
