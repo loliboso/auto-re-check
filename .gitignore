@@ -21,6 +21,21 @@ data/attendance-records.txt
 # Archive folder (contains old files and sensitive data)
 archive/
 
+# Development and test files
+src/test-*
+src/*-test.*
+src/analyze-*
+src/explore-*
+src/browser-diagnosis.*
+src/network-diagnostics.*
+src/puppeteer-diagnosis.*
+src/demo.*
+src/setup.*
+src/run-*
+src/phase*
+src/main.ts
+src/integrated-main.ts
+
 # Log files
 logs/*.log
 logs/*.json
