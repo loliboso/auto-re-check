@@ -13,6 +13,23 @@ import puppeteer, { Browser, Page, Frame } from 'puppeteer';
 
 // === 系統配置 ===
 const CONFIG = {
+  BROWSER: {
+    HEADLESS: process.argv.includes('--headless'), // 🤖 支援命令行無頭模式
+    ENABLE_SCREENSHOTS: true,
+    ARGS: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--no-first-run',
+      '--no-default-browser-check',
+      '--disable-background-timer-throttling',
+      '--disable-renderer-backgrounding',
+      '--disable-features=TranslateUI',
+      '--disable-extensions',
+      '--disable-plugins'
+    ]
+  },
   URLS: {
     LOGIN_URL: 'https://apollo.mayohr.com',
     APPLY_FORM_URL: 'https://flow.mayohr.com/GAIA/bpm/applyform?moduleType=apply&companyCode=TNLMG&muid=b154c3d6-7337-4af6-aff2-49cf849cde9b'
@@ -249,22 +266,31 @@ class IntegratedAutoAttendanceSystemV2 {
   // === Phase1 相關方法 ===
   
   private async initializeBrowser(): Promise<void> {
-    this.logger.info('正在啟動瀏覽器...');
+    this.logger.info(`正在啟動瀏覽器... ${CONFIG.BROWSER.HEADLESS ? '(無頭模式)' : '(有界面模式)'}`);
     
     try {
-      this.browser = await puppeteer.launch({
-        headless: false,
+      // 根據模式調整啟動參數
+      const launchOptions: any = {
+        headless: CONFIG.BROWSER.HEADLESS,
         executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-        defaultViewport: null,
         timeout: 30000,
-        args: [
+        args: CONFIG.BROWSER.HEADLESS ? CONFIG.BROWSER.ARGS : [
           '--no-sandbox',
-          '--disable-setuid-sandbox',
+          '--disable-setuid-sandbox', 
           '--disable-dev-shm-usage',
           '--window-size=1600,960',
           '--window-position=0,0'
         ]
-      });
+      };
+      
+      // 只在有界面模式下設置 viewport 為 null
+      if (!CONFIG.BROWSER.HEADLESS) {
+        launchOptions.defaultViewport = null;
+      } else {
+        launchOptions.defaultViewport = { width: 1366, height: 768 };
+      }
+      
+      this.browser = await puppeteer.launch(launchOptions);
 
       this.page = await this.browser.newPage();
       
@@ -273,7 +299,7 @@ class IntegratedAutoAttendanceSystemV2 {
       
       await this.page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
       
-      this.logger.success('瀏覽器啟動成功');
+      this.logger.success(`瀏覽器啟動成功 ${CONFIG.BROWSER.HEADLESS ? '(無頭模式)' : '(有界面模式)'}`);
     } catch (error) {
       this.logger.error('瀏覽器啟動失敗', { error: error instanceof Error ? error.message : String(error) });
       throw error;
@@ -760,7 +786,81 @@ class IntegratedAutoAttendanceSystemV2 {
       }
     }
     
+    // 最終驗證：檢查輸入框中的日期是否正確
+    await this.verifyDateInput(frame, task);
+    
     await frame.waitForTimeout(CONFIG.DELAYS.FORM_FILL_DELAY);
+  }
+
+  private async verifyDateInput(frame: Frame, task: AttendanceTask): Promise<void> {
+    try {
+      const inputValue = await frame.evaluate((selector) => {
+        const input = document.querySelector(selector) as HTMLInputElement;
+        return input ? input.value : '';
+      }, SELECTORS.ATTENDANCE_FORM.DATETIME_INPUT);
+      
+      this.logger.info(`日期輸入框當前值: "${inputValue}"`);
+      
+      // 檢查日期是否包含正確的年月日
+      const [targetYear, targetMonth, targetDay] = task.date.split('/');
+      const expectedDateParts = [targetYear, targetMonth.padStart(2, '0'), targetDay.padStart(2, '0')];
+      
+      let isCorrect = true;
+      for (const part of expectedDateParts) {
+        if (!inputValue.includes(part)) {
+          isCorrect = false;
+          break;
+        }
+      }
+      
+      if (!isCorrect) {
+        this.logger.warn(`日期驗證失敗，期望包含 ${expectedDateParts.join('/')}, 實際值: ${inputValue}`);
+        
+        // 嘗試強制設定正確的日期
+        await this.forceSetCorrectDate(frame, task);
+      } else {
+        this.logger.success(`日期驗證成功: ${inputValue} 包含期望的日期 ${task.date}`);
+      }
+      
+    } catch (error) {
+      this.logger.warn('日期驗證過程發生錯誤', { error: error instanceof Error ? error.message : '未知錯誤' });
+    }
+  }
+
+  private async forceSetCorrectDate(frame: Frame, task: AttendanceTask): Promise<void> {
+    this.logger.info(`強制設定正確日期: ${task.date}`);
+    
+    try {
+      // 直接設定輸入框的值為正確的日期時間格式
+      const timeValue = task.type === 'CLOCK_IN' ? '09:00:00' : '18:00:00';
+      const correctDateTime = `${task.date} ${timeValue}`;
+      
+      await frame.evaluate((selector, dateTime) => {
+        const input = document.querySelector(selector) as HTMLInputElement;
+        if (input) {
+          input.value = dateTime;
+          
+          // 觸發所有可能的事件來確保變更被識別
+          ['focus', 'input', 'change', 'blur'].forEach(eventType => {
+            const event = new Event(eventType, { bubbles: true });
+            input.dispatchEvent(event);
+          });
+        }
+      }, SELECTORS.ATTENDANCE_FORM.DATETIME_INPUT, correctDateTime);
+      
+      await frame.waitForTimeout(CONFIG.DELAYS.FORM_FILL_DELAY);
+      
+      // 再次驗證
+      const finalValue = await frame.evaluate((selector) => {
+        const input = document.querySelector(selector) as HTMLInputElement;
+        return input ? input.value : '';
+      }, SELECTORS.ATTENDANCE_FORM.DATETIME_INPUT);
+      
+      this.logger.info(`強制設定後的日期值: "${finalValue}"`);
+      
+    } catch (error) {
+      this.logger.error('強制設定日期失敗', { error: error instanceof Error ? error.message : '未知錯誤' });
+    }
   }
 
   private async navigateToTargetMonth(frame: Frame, targetYear: number, targetMonth: number): Promise<void> {
@@ -877,12 +977,23 @@ class IntegratedAutoAttendanceSystemV2 {
   }
 
   private async selectTargetDay(frame: Frame, targetDay: number): Promise<void> {
-    // 在日曆中點擊目標日期
+    this.logger.info(`選擇目標日期: ${targetDay}日`);
+    
+    // 等待日曆穩定
+    await frame.waitForTimeout(CONFIG.DELAYS.CLICK_DELAY);
+    
+    // 在日曆中點擊目標日期，確保點擊的是當前月份的日期（不是其他月份的日期）
     const daySelector = `td[role="gridcell"]:not(.k-other-month)`;
     
-    await frame.evaluate((selector, day) => {
+    const clickResult = await frame.evaluate((selector, day) => {
       const dayCells = Array.from(document.querySelectorAll(selector));
-      const targetCell = dayCells.find(cell => {
+      
+      // 過濾出當前月份的日期格子（排除 .k-other-month 類別）
+      const currentMonthCells = dayCells.filter(cell => 
+        !cell.classList.contains('k-other-month')
+      );
+      
+      const targetCell = currentMonthCells.find(cell => {
         const dayText = cell.textContent?.trim();
         return dayText === day.toString();
       });
@@ -894,7 +1005,25 @@ class IntegratedAutoAttendanceSystemV2 {
       return false;
     }, daySelector, targetDay);
 
+    if (!clickResult) {
+      throw new Error(`無法找到目標日期 ${targetDay} 在當前月份中`);
+    }
+    
+    this.logger.info(`成功點擊日期: ${targetDay}日`);
+    
+    // 等待日期選擇器關閉
     await frame.waitForTimeout(CONFIG.DELAYS.CLICK_DELAY);
+    
+    // 驗證日期是否已正確設定
+    try {
+      await frame.waitForSelector('.k-calendar', { timeout: 1000, hidden: true });
+      this.logger.info('日期選擇器已關閉');
+    } catch (error) {
+      this.logger.info('日期選擇器可能仍開啟，嘗試點擊其他區域關閉');
+      // 點擊日曆外的區域來關閉日期選擇器
+      await frame.click('body');
+      await frame.waitForTimeout(CONFIG.DELAYS.CLICK_DELAY);
+    }
   }
 
   private async selectLocation(frame: Frame): Promise<void> {
