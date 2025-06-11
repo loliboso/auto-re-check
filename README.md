@@ -20,8 +20,16 @@
 ### 2. 安裝步驟
 
 #### 🎯 方法一：一鍵自動安裝（推薦）
-**開啟終端機（Terminal）並執行：**
 
+**選擇以下任一方式：**
+
+**🖱️ 方式 A：滑鼠雙擊執行（最簡單）**
+1. 下載專案：`git clone https://github.com/loliboso/auto-re-check.git`
+2. 用 Finder 開啟專案資料夾
+3. 雙擊 `install.command` 檔案
+4. 依照螢幕提示完成安裝
+
+**⌨️ 方式 B：終端機執行**
 ```bash
 # 1. 下載專案
 git clone https://github.com/loliboso/auto-re-check.git
@@ -117,6 +125,12 @@ cd auto-re-check
 ### 步驟 3: 安裝程式
 
 #### 🎯 推薦方式：使用自動安裝腳本
+
+**🖱️ 方式 A：滑鼠雙擊（最簡單）**
+- 在 Finder 中雙擊 `install.command` 檔案
+- 依照螢幕提示完成安裝
+
+**⌨️ 方式 B：終端機執行**
 ```bash
 ./install.sh
 ```
