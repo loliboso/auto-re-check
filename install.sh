@@ -91,11 +91,31 @@ else
     echo "⚠️  部分檢查未通過，請查看上方訊息"
 fi
 
+# 8. 處理配置檔案
+echo ""
+echo "📝 設定配置檔案..."
+if [ ! -f "data/user-info.txt" ]; then
+    if [ -f "data/user-info.txt.example" ]; then
+        cp "data/user-info.txt.example" "data/user-info.txt"
+        echo "✅ 已創建 data/user-info.txt 配置檔案"
+        echo "💡 請編輯此檔案填入您的登入資訊"
+    else
+        echo "⚠️  未找到範例配置檔案"
+    fi
+else
+    echo "✅ 配置檔案已存在"
+fi
+
 echo ""
 echo "🎉 安裝完成！"
 echo ""
 echo "📝 下一步："
 echo "   1. 編輯 data/user-info.txt 設定個人資訊"
+echo "      - 填入您的公司代碼、帳號、密碼"
+echo "      - 設定需要補卡的日期"
 echo "   2. 執行 npm start 開始自動補卡"
 echo ""
-echo "💡 提示：如果遇到問題，請查看 README.md 的故障排除章節"
+echo "💡 提示："
+echo "   - 可用文字編輯器開啟 data/user-info.txt"
+echo "   - 檔案中有詳細的設定說明"
+echo "   - 如遇問題請查看 README.md 故障排除章節"

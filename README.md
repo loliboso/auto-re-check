@@ -81,9 +81,11 @@ npm run build
     2025/06/02	下班未打卡
 ```
 
-**💡 提示：可使用任何文字編輯器，如：**
-- macOS: TextEdit、VS Code、Sublime Text
-- 終端機: `nano data/user-info.txt` 或 `vim data/user-info.txt`
+**💡 提示：**
+- 如果使用自動安裝腳本，`user-info.txt` 會自動創建
+- 如果手動安裝，請複製 `data/user-info.txt.example` 為 `data/user-info.txt`
+- 可使用任何文字編輯器，如：TextEdit、VS Code、Sublime Text
+- 終端機編輯：`nano data/user-info.txt` 或 `vim data/user-info.txt`
 
 **補卡日期格式說明：**
 - `yyyy/mm/dd 上班未打卡` - 只補上班打卡
