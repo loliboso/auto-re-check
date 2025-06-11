@@ -764,45 +764,116 @@ class IntegratedAutoAttendanceSystemV2 {
   }
 
   private async navigateToTargetMonth(frame: Frame, targetYear: number, targetMonth: number): Promise<void> {
-    // 獲取當前顯示的年月
-    const currentYearMonth = await frame.evaluate(() => {
-      const yearElement = document.querySelector('.k-nav-fast');
-      const monthElement = document.querySelector('.k-nav-prev + .k-nav-fast');
-      
-      if (yearElement && monthElement) {
-        return {
-          year: parseInt(yearElement.textContent?.trim() || '0'),
-          month: parseInt(monthElement.textContent?.trim() || '0')
-        };
-      }
-      return null;
-    });
-
+    this.logger.info(`導航到目標月份: ${targetYear}年${targetMonth}月`);
+    
+    // 等待日曆完全載入
+    await frame.waitForSelector('.k-calendar', { timeout: CONFIG.TIMEOUTS.ELEMENT_WAIT });
+    await frame.waitForTimeout(CONFIG.DELAYS.CLICK_DELAY);
+    
+    // 獲取當前顯示的年月 - 根據 Kendo UI 文件和實際截圖
+    const getCurrentMonth = async (): Promise<{ year: number; month: number } | null> => {
+      return await frame.evaluate(() => {
+        // 月份標題通常在 .k-nav-fast 中，格式可能是 "六月 2025" 或 "June 2025"
+        const titleElement = document.querySelector('.k-nav-fast');
+        if (!titleElement || !titleElement.textContent) {
+          return null;
+        }
+        
+        const titleText = titleElement.textContent.trim();
+        
+        // 嘗試解析中文格式 "六月 2025"
+        const chineseMatch = titleText.match(/([一二三四五六七八九十]+)月\s*(\d{4})/);
+        if (chineseMatch) {
+          const monthMap: { [key: string]: number } = {
+            '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6,
+            '七': 7, '八': 8, '九': 9, '十': 10, '十一': 11, '十二': 12
+          };
+          const month = monthMap[chineseMatch[1]];
+          const year = parseInt(chineseMatch[2]);
+          if (month && year) {
+            return { year, month };
+          }
+        }
+        
+        // 嘗試解析英文格式 "June 2025" 或其他可能格式
+        const englishMatch = titleText.match(/(\w+)\s*(\d{4})/);
+        if (englishMatch) {
+          const monthMap: { [key: string]: number } = {
+            'January': 1, 'February': 2, 'March': 3, 'April': 4,
+            'May': 5, 'June': 6, 'July': 7, 'August': 8,
+            'September': 9, 'October': 10, 'November': 11, 'December': 12
+          };
+          const month = monthMap[englishMatch[1]];
+          const year = parseInt(englishMatch[2]);
+          if (month && year) {
+            return { year, month };
+          }
+        }
+        
+        // 如果無法解析，返回 null
+        return null;
+      });
+    };
+    
+    // 獲取當前月份
+    let currentYearMonth = await getCurrentMonth();
     if (!currentYearMonth) {
-      this.logger.warn('無法獲取當前年月，跳過導航');
-      return;
+      this.logger.warn('無法解析當前年月，嘗試使用當前日期');
+      const now = new Date();
+      currentYearMonth = {
+        year: now.getFullYear(),
+        month: now.getMonth() + 1 // JavaScript 月份從 0 開始
+      };
     }
-
-    // 如果年份不同，需要先調整年份
+    
+    this.logger.info(`當前顯示: ${currentYearMonth.year}年${currentYearMonth.month}月`);
+    this.logger.info(`目標日期: ${targetYear}年${targetMonth}月`);
+    
+    // 如果年份不同，記錄警告但不處理（一般補卡都在當年）
     if (currentYearMonth.year !== targetYear) {
-      // 這裡可以實作年份調整邏輯，但通常補卡都是當年的，所以先跳過
-      this.logger.info(`當前年份: ${currentYearMonth.year}, 目標年份: ${targetYear}`);
+      this.logger.warn(`年份不同，當前: ${currentYearMonth.year}, 目標: ${targetYear}`);
     }
-
-    // 如果月份不同，點擊上一月或下一月按鈕
+    
+    // 計算需要導航的月份差
     let monthDiff = targetMonth - currentYearMonth.month;
-    while (monthDiff !== 0) {
+    this.logger.info(`月份差: ${monthDiff}`);
+    
+    // 導航到目標月份
+    let attempts = 0;
+    const maxAttempts = 12; // 最多嘗試 12 次（一年）
+    
+    while (monthDiff !== 0 && attempts < maxAttempts) {
+      attempts++;
+      
       if (monthDiff > 0) {
-        // 需要往後翻月
+        // 需要往後翻月（下個月）
+        this.logger.info(`點擊下一月按鈕 (剩餘 ${monthDiff} 個月)`);
         await frame.click('.k-nav-next');
         monthDiff--;
       } else {
-        // 需要往前翻月
+        // 需要往前翻月（上個月）
+        this.logger.info(`點擊上一月按鈕 (剩餘 ${Math.abs(monthDiff)} 個月)`);
         await frame.click('.k-nav-prev');
         monthDiff++;
       }
+      
+      // 等待月份切換完成
       await frame.waitForTimeout(CONFIG.DELAYS.CLICK_DELAY);
+      
+      // 驗證月份是否已經切換
+      const newYearMonth = await getCurrentMonth();
+      if (newYearMonth) {
+        this.logger.info(`月份已切換到: ${newYearMonth.year}年${newYearMonth.month}月`);
+        // 重新計算月份差
+        monthDiff = targetMonth - newYearMonth.month;
+      }
     }
+    
+    if (attempts >= maxAttempts) {
+      throw new Error(`月份導航超時，嘗試 ${attempts} 次後仍無法到達目標月份`);
+    }
+    
+    this.logger.success(`成功導航到 ${targetYear}年${targetMonth}月`);
   }
 
   private async selectTargetDay(frame: Frame, targetDay: number): Promise<void> {
