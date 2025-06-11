@@ -52,18 +52,59 @@ echo "   ✅ 專案目錄正確"
 echo "   ✅ 依賴套件已安裝" 
 echo "   ✅ 配置檔案存在"
 echo ""
+
+# 選擇執行模式
+echo "🎮 請選擇執行模式："
+echo ""
+echo "   1️⃣  🤖 無頭模式（推薦）- 快速執行，速度提升 5.6 倍"
+echo "   2️⃣  🖥️  有界面模式 - 可視化過程，適合調試"
+echo ""
+echo "💡 提示："
+echo "   - 無頭模式：背景執行，約 34 秒完成"
+echo "   - 有界面模式：顯示瀏覽器，約 45 秒完成"
+echo ""
+
+# 讀取用戶選擇
+while true; do
+    read -p "請輸入選擇 (1 或 2)，或按 Enter 使用預設無頭模式: " choice
+    case $choice in
+        1|"")
+            EXECUTION_MODE="headless"
+            EXECUTION_COMMAND="npm run start:headless"
+            MODE_NAME="🤖 無頭模式"
+            break
+            ;;
+        2)
+            EXECUTION_MODE="gui"
+            EXECUTION_COMMAND="npm start"
+            MODE_NAME="🖥️ 有界面模式"
+            break
+            ;;
+        *)
+            echo "❌ 無效選擇，請輸入 1 或 2"
+            ;;
+    esac
+done
+
+echo ""
+echo "✅ 已選擇：$MODE_NAME"
+echo ""
 echo "⚠️  注意事項："
 echo "   - 請確保 Google Chrome 已安裝"
-echo "   - 程式執行期間請勿關閉瀏覽器"
+if [ "$EXECUTION_MODE" = "gui" ]; then
+    echo "   - 程式執行期間請勿關閉瀏覽器視窗"
+else
+    echo "   - 無頭模式將在背景執行，不會顯示瀏覽器視窗"
+fi
 echo "   - 執行完成後會自動關閉瀏覽器"
 echo ""
 read -p "按 Enter 鍵開始執行，或按 Ctrl+C 取消..."
 echo ""
 
 # 執行程式
-echo "🔄 正在啟動自動補卡程式..."
+echo "🔄 正在啟動自動補卡程式 ($MODE_NAME)..."
 echo "----------------------------------------"
-npm start
+$EXECUTION_COMMAND
 
 # 檢查執行結果
 EXIT_CODE=$?
