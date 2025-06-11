@@ -1,99 +1,38 @@
 # Dependencies
 node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
 
-# TypeScript build
+# Build output
 dist/
 *.tsbuildinfo
 
-# Environment files
-.env
-.env.local
-.env.production
-.env.development
-
-# Sensitive data files
+# Environment and sensitive files
+.env*
 data/user-info.txt
 data/attendance-records.txt
 
-# Archive folder (contains old files and sensitive data)
-archive/
-
-# Development and test files
-src/test-*
-src/*-test.*
-src/analyze-*
-src/explore-*
-src/browser-diagnosis.*
-src/network-diagnostics.*
-src/puppeteer-diagnosis.*
-src/demo.*
-src/setup.*
-src/run-*
-src/phase*
-src/main.ts
-src/integrated-main.ts
-
-# Log files
+# Runtime generated files
 logs/*.log
 logs/*.json
-
-# Screenshots
 screenshots/*.png
 screenshots/*.jpg
 screenshots/*.jpeg
 
+# Test and development files
+tests/
+dist-test/
+*-test.*
+*.test.*
+
+# Archive and backup
+archive/
+*.bak
+*.tmp
+*.backup
+
+# System files
+.DS_Store
+Thumbs.db
+
 # IDE files
 .vscode/
 .idea/
-*.swp
-*.swo
-*~
-
-# macOS
-.DS_Store
-.AppleDouble
-.LSOverride
-
-# Windows
-Thumbs.db
-ehthumbs.db
-Desktop.ini
-
-# Linux
-*~
-.nfs*
-
-# Temporary files
-*.tmp
-*.temp
-.cache/
-
-# Coverage reports
-coverage/
-*.lcov
-
-# Runtime files
-*.pid
-*.seed
-*.pid.lock
-
-# Optional npm cache directory
-.npm
-
-# Optional REPL history
-.node_repl_history
-
-# Output of 'npm pack'
-*.tgz
-
-# Yarn Integrity file
-.yarn-integrity
-
-# dotenv environment variables file
-.env.test
-
-# Stores VSCode versions used for testing VSCode extensions
-.vscode-test
