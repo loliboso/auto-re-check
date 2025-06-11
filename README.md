@@ -23,7 +23,6 @@
 
 #### 🎯 方法一：一鍵自動安裝（推薦）
 
-**🖱️ 方式 A：滑鼠雙擊執行（最簡單）**
 1. 下載專案：`git clone https://github.com/loliboso/auto-re-check.git`
 2. 用 Finder 開啟專案資料夾
 3. 雙擊 `install.command` 檔案
