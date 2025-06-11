@@ -1,0 +1,3 @@
+[2025-06-10T14:29:07.883Z] [INFO] === 第一階段：登入功能測試開始 ===
+[2025-06-10T14:29:07.884Z] [INFO] 正在啟動瀏覽器...
+[2025-06-10T14:29:07.885Z] [ERROR] 測試執行失敗 | Context: {"error":"Could not find Chrome (ver. 121.0.6167.85). This can occur if either\n 1. you did not perform an installation before running the script (e.g. `npx puppeteer browsers install chrome`) or\n 2. your cache path is incorrectly configured (which is: /Users/tnl-loso/.cache/puppeteer).\nFor (2), check out our guide on configuring puppeteer at https://pptr.dev/guides/configuration."}

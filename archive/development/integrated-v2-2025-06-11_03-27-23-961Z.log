@@ -1,0 +1,43 @@
+[2025-06-11T03:27:23.962Z] [INFO ] === 開始整合版自動補卡程式 v2 ===
+[2025-06-11T03:27:23.962Z] [INFO ] 載入配置: 6 筆補卡記錄，展開為 10 個任務
+[2025-06-11T03:27:23.962Z] [INFO ] >>> Phase 1: 開始登入流程
+[2025-06-11T03:27:23.963Z] [INFO ] 正在啟動瀏覽器...
+[2025-06-11T03:27:25.425Z] [OK   ] 瀏覽器啟動成功
+[2025-06-11T03:27:25.425Z] [INFO ] 開始登入流程
+[2025-06-11T03:27:27.603Z] [INFO ] 已處理登入彈出視窗
+[2025-06-11T03:27:30.695Z] [INFO ] 登入表單填寫完成
+[2025-06-11T03:27:31.528Z] [OK   ] 登入成功
+[2025-06-11T03:27:31.529Z] [INFO ] 正在導航到表單申請頁面
+[2025-06-11T03:27:36.590Z] [OK   ] 成功導航到表單申請頁面
+[2025-06-11T03:27:36.591Z] [OK   ] >>> Phase 1: 登入流程完成
+[2025-06-11T03:27:36.591Z] [INFO ] >>> Phase 2: 開始補卡流程
+[2025-06-11T03:27:36.591Z] [INFO ] 開始處理 10 個補卡任務
+[2025-06-11T03:27:36.594Z] [INFO ] [1/10] 處理任務: 2025/06/11 上班打卡
+[2025-06-11T03:27:44.714Z] [INFO ] 填寫表單: 2025/06/11 上班打卡
+[2025-06-11T03:27:44.907Z] [INFO ] 截圖已保存: screenshots/form_loaded_1749612464717.png
+[2025-06-11T03:27:44.912Z] [INFO ] 開始填寫類型欄位
+[2025-06-11T03:27:44.912Z] [INFO ] 選擇補卡類型: 上班
+[2025-06-11T03:27:44.920Z] [INFO ] 成功使用 select 方法選擇類型: 上班 (value=1)
+[2025-06-11T03:27:45.416Z] [INFO ] 截圖已保存: screenshots/after_type_selection_1749612465222.png
+[2025-06-11T03:27:45.416Z] [INFO ] 開始填寫日期/時間欄位
+[2025-06-11T03:27:45.416Z] [INFO ] 設定日期時間: 2025/06/11
+[2025-06-11T03:27:45.418Z] [INFO ] 點擊日曆按鈕開啟日期選擇器
+[2025-06-11T03:27:45.964Z] [INFO ] 目標日期: 2025年6月11日
+[2025-06-11T03:27:45.971Z] [INFO ] 當前年份: null, 目標年份: 2025
+[2025-06-11T03:27:49.631Z] [INFO ] 成功設定日期: 2025/06/11
+[2025-06-11T03:27:50.137Z] [INFO ] 截圖已保存: screenshots/after_datetime_selection_1749612469933.png
+[2025-06-11T03:27:50.138Z] [INFO ] 開始填寫地點欄位
+[2025-06-11T03:27:50.138Z] [INFO ] 選擇地點: TNLMG
+[2025-06-11T03:27:50.143Z] [INFO ] 成功使用 select 方法選擇地點: TNLMG (value=518ee0c2-a787-40a6-bb94-5a081250e896)
+[2025-06-11T03:27:50.663Z] [INFO ] 截圖已保存: screenshots/after_location_selection_1749612470444.png
+[2025-06-11T03:27:50.663Z] [INFO ] 表單填寫完成
+[2025-06-11T03:27:50.663Z] [INFO ] 準備送簽表單
+[2025-06-11T03:27:50.686Z] [INFO ] 點擊送簽按鈕
+[2025-06-11T03:27:53.693Z] [INFO ] 無確認對話框需要處理
+[2025-06-11T03:27:55.695Z] [OK   ] 表單送簽完成
+[2025-06-11T03:27:55.697Z] [ERROR] 任務 2025/06/11 上班打卡 失敗: Protocol error: Connection closed. Most likely the page has been closed.
+[2025-06-11T03:27:55.697Z] [ERROR] 程式執行失敗: Protocol error: Connection closed. Most likely the page has been closed.
+[2025-06-11T03:27:55.698Z] [ERROR] 錯誤堆疊 | Context: {
+  "stack": "Error: Protocol error: Connection closed. Most likely the page has been closed.\n    at assert (/Users/tnl-loso/Desktop/auto-re-check/node_modules/puppeteer-core/lib/cjs/puppeteer/util/assert.js:18:15)\n    at CdpPage.close (/Users/tnl-loso/Desktop/auto-re-check/node_modules/puppeteer-core/lib/cjs/puppeteer/cdp/Page.js:848:32)\n    at IntegratedAutoAttendanceSystemV2.<anonymous> (/Users/tnl-loso/Desktop/auto-re-check/dist/integrated-main-v2.js:501:50)\n    at step (/Users/tnl-loso/Desktop/auto-re-check/dist/integrated-main-v2.js:41:23)\n    at Object.next (/Users/tnl-loso/Desktop/auto-re-check/dist/integrated-main-v2.js:22:53)\n    at fulfilled (/Users/tnl-loso/Desktop/auto-re-check/dist/integrated-main-v2.js:13:58)"
+}
+[2025-06-11T03:27:55.855Z] [INFO ] 瀏覽器已關閉

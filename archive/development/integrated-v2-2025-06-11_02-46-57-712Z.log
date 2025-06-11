@@ -1,0 +1,60 @@
+[2025-06-11T02:46:57.714Z] [INFO ] === 開始整合版自動補卡程式 v2 ===
+[2025-06-11T02:46:57.714Z] [INFO ] 載入配置: 6 筆補卡記錄，展開為 10 個任務
+[2025-06-11T02:46:57.715Z] [INFO ] >>> Phase 1: 開始登入流程
+[2025-06-11T02:46:57.715Z] [INFO ] 正在啟動瀏覽器...
+[2025-06-11T02:46:58.848Z] [OK   ] 瀏覽器啟動成功
+[2025-06-11T02:46:58.848Z] [INFO ] 開始登入流程
+[2025-06-11T02:47:00.743Z] [INFO ] 已處理登入彈出視窗
+[2025-06-11T02:47:03.515Z] [INFO ] 登入表單填寫完成
+[2025-06-11T02:47:04.338Z] [OK   ] 登入成功
+[2025-06-11T02:47:04.339Z] [INFO ] 正在導航到表單申請頁面
+[2025-06-11T02:47:06.186Z] [OK   ] 成功導航到表單申請頁面
+[2025-06-11T02:47:06.187Z] [OK   ] >>> Phase 1: 登入流程完成
+[2025-06-11T02:47:06.187Z] [INFO ] >>> Phase 2: 開始補卡流程
+[2025-06-11T02:47:06.187Z] [INFO ] 開始處理 10 個補卡任務
+[2025-06-11T02:47:06.192Z] [INFO ] [1/10] 處理任務: 2025/06/11 上班打卡
+[2025-06-11T02:47:12.793Z] [INFO ] 填寫表單: 2025/06/11 上班打卡
+[2025-06-11T02:47:12.805Z] [INFO ] 選擇補卡類型: 上班
+[2025-06-11T02:47:13.367Z] [INFO ] 成功選擇類型: 上班
+[2025-06-11T02:47:13.670Z] [INFO ] 設定日期時間: 2025/06/11
+[2025-06-11T02:47:13.674Z] [INFO ] 點擊日曆按鈕開啟日期選擇器
+[2025-06-11T02:47:14.194Z] [INFO ] 目標日期: 2025年6月11日
+[2025-06-11T02:47:24.197Z] [ERROR] 日期設定失敗: TimeoutError: Waiting for selector `.k-calendar` failed: Waiting failed: 10000ms exceeded
+[2025-06-11T02:47:24.202Z] [INFO ] 嘗試備用日期設定方法
+[2025-06-11T02:47:24.216Z] [INFO ] 備用方法設定完成
+[2025-06-11T02:47:24.517Z] [INFO ] 選擇地點: TNLMG
+[2025-06-11T02:47:24.520Z] [INFO ] 找到地點選擇器: select[name="location"]
+[2025-06-11T02:47:24.521Z] [INFO ] 可用地點選項: | Context: {
+  "options": [
+    {
+      "value": "",
+      "text": "請選擇"
+    },
+    {
+      "value": "518ee0c2-a787-40a6-bb94-5a081250e896",
+      "text": "TNLMG"
+    },
+    {
+      "value": "00000000-0000-0000-0000-000000000000",
+      "text": "其他"
+    },
+    {
+      "value": "802d7fed-ca0b-4e13-8856-62684f81c584",
+      "text": "士奇"
+    }
+  ]
+}
+[2025-06-11T02:47:24.524Z] [INFO ] 成功選擇地點: TNLMG
+[2025-06-11T02:47:24.825Z] [INFO ] 表單填寫完成
+[2025-06-11T02:47:24.825Z] [INFO ] 準備送簽表單
+[2025-06-11T02:47:24.850Z] [INFO ] 點擊送簽按鈕
+[2025-06-11T02:47:27.853Z] [INFO ] 無確認對話框需要處理
+[2025-06-11T02:47:29.855Z] [OK   ] 表單送簽完成
+[2025-06-11T02:47:29.910Z] [OK   ] 任務 2025/06/11 上班打卡 完成
+[2025-06-11T02:47:29.911Z] [INFO ] [2/10] 處理任務: 2025/06/10 下班打卡
+[2025-06-11T02:47:49.917Z] [ERROR] 任務 2025/06/10 下班打卡 失敗: Waiting for selector `a[href*="javascript:void(0)"][data-formkind="TNLMG9.FORM.1001"]` failed: Waiting failed: 10000ms exceeded
+[2025-06-11T02:47:49.918Z] [ERROR] 程式執行失敗: Waiting for selector `a[href*="javascript:void(0)"][data-formkind="TNLMG9.FORM.1001"]` failed: Waiting failed: 10000ms exceeded
+[2025-06-11T02:47:49.919Z] [ERROR] 錯誤堆疊 | Context: {
+  "stack": "TimeoutError: Waiting for selector `a[href*=\"javascript:void(0)\"][data-formkind=\"TNLMG9.FORM.1001\"]` failed: Waiting failed: 10000ms exceeded\n    at new WaitTask (/Users/tnl-loso/Desktop/auto-re-check/node_modules/puppeteer-core/lib/cjs/puppeteer/common/WaitTask.js:50:34)\n    at IsolatedWorld.waitForFunction (/Users/tnl-loso/Desktop/auto-re-check/node_modules/puppeteer-core/lib/cjs/puppeteer/api/Realm.js:25:26)\n    at PQueryHandler.waitFor (/Users/tnl-loso/Desktop/auto-re-check/node_modules/puppeteer-core/lib/cjs/puppeteer/common/QueryHandler.js:170:95)\n    at async CdpFrame.waitForSelector (/Users/tnl-loso/Desktop/auto-re-check/node_modules/puppeteer-core/lib/cjs/puppeteer/api/Frame.js:494:21)\n    at async CdpPage.waitForSelector (/Users/tnl-loso/Desktop/auto-re-check/node_modules/puppeteer-core/lib/cjs/puppeteer/api/Page.js:1351:20)"
+}
+[2025-06-11T02:47:50.025Z] [INFO ] 瀏覽器已關閉

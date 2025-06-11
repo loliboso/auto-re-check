@@ -1,0 +1,45 @@
+{
+  "name": "auto-re-check",
+  "version": "2.0.0",
+  "description": "🤖 自動補卡程式 - 企業打卡系統自動化工具",
+  "main": "dist/integrated-main-v2.js",
+  "scripts": {
+    "build": "npx tsc",
+    "start": "npm run build && node dist/integrated-main-v2.js",
+    "dev": "npx tsx src/integrated-main-v2.ts",
+    "clean": "rm -rf dist logs/* screenshots/*",
+    "check": "npm run build && echo '✅ 程式編譯成功，可以執行 npm start'",
+    "logs": "ls -t logs/ | head -1 | xargs -I {} cat logs/{}"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "ts-node": "^10.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "automation",
+    "attendance",
+    "punch-card",
+    "enterprise",
+    "typescript",
+    "puppeteer",
+    "hr-system"
+  ],
+  "author": "Auto Re-check Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/auto-re-check.git"
+  },
+  "homepage": "https://github.com/your-username/auto-re-check#readme",
+  "bugs": {
+    "url": "https://github.com/your-username/auto-re-check/issues"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "dependencies": {
+    "puppeteer": "^21.11.0"
+  }
+}

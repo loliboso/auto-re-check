@@ -1,0 +1,15 @@
+[2025-06-10T15:31:06.058Z] [INFO] === 第一階段：登入功能測試開始 ===
+[2025-06-10T15:31:06.067Z] [INFO] 正在啟動瀏覽器...
+[2025-06-10T15:31:07.960Z] [INFO] 瀏覽器啟動成功
+[2025-06-10T15:31:07.961Z] [INFO] 讀取使用者配置...
+[2025-06-10T15:31:07.963Z] [INFO] 使用者配置載入成功 | Context: {"username":"TNL011","companyCode":"TNLMG","recordsCount":3}
+[2025-06-10T15:31:07.964Z] [INFO] 開始執行登入流程
+[2025-06-10T15:31:07.964Z] [INFO] 導航到登入頁面: https://apollo.mayohr.com
+[2025-06-10T15:31:10.626Z] [INFO] 頁面載入成功
+[2025-06-10T15:31:13.629Z] [INFO] 等待登入表單載入...
+[2025-06-10T15:31:23.633Z] [ERROR] 登入表單載入失敗 | Context: {"error":"Waiting for selector `#username` failed: Waiting failed: 10000ms exceeded"}
+[2025-06-10T15:31:24.129Z] [INFO] 截圖已儲存: screenshots/login_form_not_found_1749569483633.png
+[2025-06-10T15:31:24.130Z] [ERROR] 登入流程失敗 | Context: {"error":"Waiting for selector `#username` failed: Waiting failed: 10000ms exceeded"}
+[2025-06-10T15:31:24.168Z] [INFO] 截圖已儲存: screenshots/login_failed_1749569484130.png
+[2025-06-10T15:31:24.168Z] [ERROR] 測試執行失敗 | Context: {"error":"Waiting for selector `#username` failed: Waiting failed: 10000ms exceeded"}
+[2025-06-10T15:31:24.283Z] [INFO] 瀏覽器已關閉

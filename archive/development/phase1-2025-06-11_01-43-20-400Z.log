@@ -1,0 +1,39 @@
+[2025-06-11T01:43:20.401Z] [INFO] === 第一階段：登入功能測試開始 ===
+[2025-06-11T01:43:20.402Z] [INFO] 正在啟動瀏覽器...
+[2025-06-11T01:43:21.759Z] [INFO] 瀏覽器啟動成功
+[2025-06-11T01:43:21.760Z] [INFO] 讀取使用者配置...
+[2025-06-11T01:43:21.763Z] [INFO] 使用者配置載入成功 | Context: {"username":"TNL011","companyCode":"TNLMG","recordsCount":3}
+[2025-06-11T01:43:21.763Z] [INFO] 開始執行登入流程
+[2025-06-11T01:43:21.763Z] [INFO] 導航到登入頁面: https://apollo.mayohr.com
+[2025-06-11T01:43:22.144Z] [INFO] 頁面載入成功
+[2025-06-11T01:43:25.147Z] [INFO] 當前頁面 URL | Context: {"url":"https://apollo.mayohr.com/tube"}
+[2025-06-11T01:43:25.148Z] [INFO] 檢查是否有 pop-up 提示...
+[2025-06-11T01:43:25.157Z] [INFO] 找到 pop-up 確定按鈕，準備點擊關閉
+[2025-06-11T01:43:25.835Z] [INFO] 關閉 pop-up 後的新 URL | Context: {"url":"https://asiaauth.mayohr.com/HRM/Account/Login?original_target=https%3A%2F%2Fapollo.mayohr.com%2Ftube&lang=zh-tw"}
+[2025-06-11T01:43:26.637Z] [INFO] 使用者已登入，在主頁面，尋找表單申請按鈕
+[2025-06-11T01:43:26.646Z] [WARN] 未找到表單申請按鈕
+[2025-06-11T01:43:26.647Z] [INFO] 檢查是否需要登入...
+[2025-06-11T01:43:26.824Z] [INFO] 截圖已儲存: screenshots/before_login_form_search_1749606206647.png
+[2025-06-11T01:43:26.824Z] [INFO] 開始填寫登入表單...
+[2025-06-11T01:43:26.824Z] [INFO] 填寫公司代碼...
+[2025-06-11T01:43:26.968Z] [INFO] 公司代碼填寫完成 | Context: {"companyCode":"TNLMG"}
+[2025-06-11T01:43:26.987Z] [INFO] 填寫工號...
+[2025-06-11T01:43:27.120Z] [INFO] 工號填寫完成 | Context: {"employeeNo":"TNL011"}
+[2025-06-11T01:43:27.121Z] [INFO] 填寫密碼...
+[2025-06-11T01:43:27.243Z] [INFO] 密碼填寫完成
+[2025-06-11T01:43:27.243Z] [INFO] 登入表單填寫完成
+[2025-06-11T01:43:27.404Z] [INFO] 截圖已儲存: screenshots/login_form_filled_1749606207243.png
+[2025-06-11T01:43:27.404Z] [INFO] 提交登入表單...
+[2025-06-11T01:43:27.406Z] [INFO] 找到提交按鈕，準備點擊
+[2025-06-11T01:43:27.919Z] [INFO] 等待登入處理和頁面導航...
+[2025-06-11T01:43:28.709Z] [INFO] 登入後的 URL | Context: {"url":"https://apollo.mayohr.com/tube"}
+[2025-06-11T01:43:28.709Z] [INFO] 登入成功，到達主頁面，需要點擊表單申請按鈕
+[2025-06-11T01:43:28.828Z] [INFO] 截圖已儲存: screenshots/login_success_main_page_1749606208709.png
+[2025-06-11T01:43:28.829Z] [INFO] 導航到表單申請頁面...
+[2025-06-11T01:43:29.080Z] [INFO] 點擊前的 URL | Context: {"url":"https://apollo.mayohr.com/tube"}
+[2025-06-11T01:43:29.867Z] [INFO] 已點擊表單申請按鈕，等待頁面變化...
+[2025-06-11T01:43:30.869Z] [DEBUG] 等待 URL 變化... 當前: https://flow.mayohr.com/GAIA/bpm/applyform?moduleType=apply&companyCode=TNLMG&muid=b154c3d6-7337-4af6-aff2-49cf849cde9b
+[2025-06-11T01:43:30.870Z] [INFO] 成功導航到表單申請頁面 | Context: {"url":"https://flow.mayohr.com/GAIA/bpm/applyform?moduleType=apply&companyCode=TNLMG&muid=b154c3d6-7337-4af6-aff2-49cf849cde9b"}
+[2025-06-11T01:43:31.041Z] [INFO] 截圖已儲存: screenshots/form_application_page_success_1749606210870.png
+[2025-06-11T01:43:31.041Z] [INFO] ✅ 第一階段登入功能測試成功
+[2025-06-11T01:43:31.153Z] [INFO] 瀏覽器已關閉
