@@ -9,201 +9,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { execSync } from 'child_process';
 import puppeteer, { Browser, Page, Frame } from 'puppeteer';
-
-// === 環境檢查和配置驗證 ===
-class SystemChecker {
-  static async checkEnvironment(): Promise<void> {
-    console.log('🔍 進行環境檢查...\n');
-    
-    // 檢查 Node.js 版本
-    this.checkNodeVersion();
-    
-    // 檢查 Chrome 安裝
-    this.checkChromeInstallation();
-    
-    console.log('✅ 環境檢查完成\n');
-  }
-  
-  private static checkNodeVersion(): void {
-    try {
-      const version = process.version;
-      const majorVersion = parseInt(version.substring(1).split('.')[0]);
-      
-      console.log(`📦 Node.js 版本: ${version}`);
-      
-      if (majorVersion < 16) {
-        console.error('❌ Node.js 版本過低，建議使用 v16 以上版本');
-        process.exit(1);
-      } else {
-        console.log('✅ Node.js 版本符合需求');
-      }
-    } catch (error) {
-      console.error('❌ 無法檢查 Node.js 版本');
-      process.exit(1);
-    }
-  }
-  
-  private static checkChromeInstallation(): void {
-    const chromePath = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-    
-    if (fs.existsSync(chromePath)) {
-      console.log('✅ Google Chrome 已安裝');
-      try {
-        const version = execSync(`"${chromePath}" --version`, { encoding: 'utf8' }).trim();
-        console.log(`🌐 Chrome 版本: ${version}`);
-      } catch (error) {
-        console.log('⚠️  Chrome 已安裝但無法取得版本資訊');
-      }
-    } else {
-      console.error('❌ Google Chrome 未安裝在預期位置');
-      console.error('   請確認 Chrome 安裝在: /Applications/Google Chrome.app/');
-      process.exit(1);
-    }
-  }
-  
-  static validateConfiguration(configPath: string): AttendanceTask[] {
-    console.log('📋 驗證配置檔案...\n');
-    
-    if (!fs.existsSync(configPath)) {
-      console.error(`❌ 配置檔案不存在: ${configPath}`);
-      console.error('   請確認 data/user-info.txt 檔案存在');
-      process.exit(1);
-    }
-    
-    const content = fs.readFileSync(configPath, 'utf-8');
-    
-    // 驗證登入資訊
-    const loginInfo = this.parseLoginInfo(content);
-    this.validateLoginInfo(loginInfo);
-    
-    // 驗證補卡記錄
-    const attendanceRecords = this.parseAttendanceRecords(content);
-    const tasks = this.expandAttendanceRecords(attendanceRecords);
-    
-    console.log(`📊 配置檔案驗證完成`);
-    console.log(`   ├─ 登入帳號: ${loginInfo.username}`);
-    console.log(`   ├─ 公司代碼: ${loginInfo.companyCode}`);
-    console.log(`   ├─ 補卡日期: ${attendanceRecords.length} 筆記錄`);
-    console.log(`   └─ 補卡任務: ${tasks.length} 個任務\n`);
-    
-    // 顯示任務詳情
-    console.log('📅 檢測到的補卡任務:');
-    tasks.forEach((task, index) => {
-      console.log(`   ${index + 1}. ${task.displayName}`);
-    });
-    console.log('');
-    
-    return tasks;
-  }
-  
-  private static parseLoginInfo(content: string): LoginInfo {
-    const lines = content.split('\n');
-    const loginInfo: Partial<LoginInfo> = {};
-    
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (trimmed.includes('公司代碼：')) {
-        loginInfo.companyCode = trimmed.split('：')[1]?.trim();
-      } else if (trimmed.includes('登入帳號：')) {
-        loginInfo.username = trimmed.split('：')[1]?.trim();
-      } else if (trimmed.includes('密碼：')) {
-        loginInfo.password = trimmed.split('：')[1]?.trim();
-      }
-    }
-    
-    return loginInfo as LoginInfo;
-  }
-  
-  private static validateLoginInfo(loginInfo: LoginInfo): void {
-    if (!loginInfo.companyCode || !loginInfo.username || !loginInfo.password) {
-      console.error('❌ 登入資訊不完整');
-      console.error('   請確認 data/user-info.txt 包含:');
-      console.error('   - 公司代碼');
-      console.error('   - 登入帳號');
-      console.error('   - 密碼');
-      process.exit(1);
-    }
-    
-    console.log('✅ 登入資訊完整');
-  }
-  
-  private static parseAttendanceRecords(content: string): AttendanceRecord[] {
-    const lines = content.split('\n');
-    const records: AttendanceRecord[] = [];
-    let inAttendanceSection = false;
-    
-    for (const line of lines) {
-      const trimmed = line.trim();
-      
-      if (trimmed.includes('補卡日期：')) {
-        inAttendanceSection = true;
-        continue;
-      }
-      
-      if (inAttendanceSection && trimmed) {
-        const match = trimmed.match(/^(\d{4}\/\d{2}\/\d{2})\s+(.+)$/);
-        if (match) {
-          const [, date, typeStr] = match;
-          let type: 'CLOCK_IN' | 'CLOCK_OUT' | 'BOTH';
-          
-          if (typeStr.includes('上班未打卡') && typeStr.includes('下班未打卡')) {
-            type = 'BOTH';
-          } else if (typeStr.includes('上班未打卡')) {
-            type = 'CLOCK_IN';
-          } else if (typeStr.includes('下班未打卡')) {
-            type = 'CLOCK_OUT';
-          } else {
-            continue; // 跳過無法識別的格式
-          }
-          
-          records.push({ date, type, rawText: typeStr });
-        }
-      }
-    }
-    
-    if (records.length === 0) {
-      console.error('❌ 未找到有效的補卡記錄');
-      console.error('   請確認補卡日期格式正確，例如:');
-      console.error('   2025/06/04	上班未打卡');
-      process.exit(1);
-    }
-    
-    console.log('✅ 補卡記錄格式正確');
-    return records;
-  }
-  
-  private static expandAttendanceRecords(records: AttendanceRecord[]): AttendanceTask[] {
-    const tasks: AttendanceTask[] = [];
-    
-    for (const record of records) {
-      if (record.type === 'BOTH') {
-        tasks.push({
-          date: record.date,
-          type: 'CLOCK_IN',
-          displayName: `${record.date} 上班打卡`
-        });
-        tasks.push({
-          date: record.date,
-          type: 'CLOCK_OUT',
-          displayName: `${record.date} 下班打卡`
-        });
-      } else {
-        const displayName = record.type === 'CLOCK_IN' ? 
-          `${record.date} 上班打卡` : 
-          `${record.date} 下班打卡`;
-        tasks.push({
-          date: record.date,
-          type: record.type,
-          displayName
-        });
-      }
-    }
-    
-    return tasks;
-  }
-}
 
 // === 系統配置 ===
 const CONFIG = {
@@ -279,12 +85,7 @@ const SELECTORS = {
     
     // 確認對話框處理
     CONFIRM_BUTTON: 'button',
-    ALERT_DIALOG: '.ui-dialog, .modal, .alert',
-    
-    // 警告訊息處理
-    WARNING_DIALOG: '.ui-dialog-content, .modal-body, .alert-content',
-    WARNING_OK_BUTTON: 'button:contains("確定"), button:contains("OK"), .ui-button',
-    WARNING_CLOSE_BUTTON: '.ui-dialog-titlebar-close, .modal-close, .close'
+    ALERT_DIALOG: '.ui-dialog, .modal, .alert'
   }
 };
 
@@ -436,6 +237,8 @@ class IntegratedAutoAttendanceSystemV2 {
   private userConfig: UserConfig;
   private currentTaskIndex: number = 0;
   private attendanceTasks: AttendanceTask[] = [];
+  private currentFormPage: Page | null = null;
+  private hasDialogHandler: boolean = false;
 
   constructor() {
     this.logger = new IntegratedLogService();
@@ -444,7 +247,8 @@ class IntegratedAutoAttendanceSystemV2 {
   }
 
   // === Phase1 相關方法 ===
-   private async initializeBrowser(): Promise<void> {
+  
+  private async initializeBrowser(): Promise<void> {
     this.logger.info('正在啟動瀏覽器...');
     
     try {
@@ -466,25 +270,7 @@ class IntegratedAutoAttendanceSystemV2 {
       
       this.page.setDefaultNavigationTimeout(60000);
       this.page.setDefaultTimeout(30000);
-
-      // 設置瀏覽器原生彈窗處理器
-      this.page.on('dialog', async (dialog) => {
-        const message = dialog.message();
-        this.logger.info(`檢測到瀏覽器原生彈窗: ${message}`);
-        
-        // 檢查是否為補卡相關警告
-        if (message.includes('已有') && message.includes('打卡紀錄') ||
-            message.includes('重複') && message.includes('打卡') ||
-            message.includes('當日已有') ||
-            message.includes('已經存在')) {
-          this.logger.info('檢測到補卡重複警告彈窗，自動點擊確定');
-          await dialog.accept();
-        } else {
-          this.logger.info('檢測到其他類型彈窗，自動點擊確定');
-          await dialog.accept();
-        }
-      });
-
+      
       await this.page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
       
       this.logger.success('瀏覽器啟動成功');
@@ -492,36 +278,6 @@ class IntegratedAutoAttendanceSystemV2 {
       this.logger.error('瀏覽器啟動失敗', { error: error instanceof Error ? error.message : String(error) });
       throw error;
     }
-  }
-
-  private setupDialogHandler(page: Page): void {
-    // 檢查是否已經設置過 dialog 處理器，避免重複設置
-    if ((page as any)._hasDialogHandler) {
-      this.logger.info('分頁已設置 dialog 事件處理器，跳過');
-      return;
-    }
-    
-    this.logger.info('為分頁設置 dialog 事件處理器');
-    
-    page.on('dialog', async (dialog) => {
-      const message = dialog.message();
-      this.logger.info(`檢測到瀏覽器原生彈窗: ${message}`);
-      
-      // 檢查是否為補卡相關警告
-      if (message.includes('已有') && message.includes('打卡紀錄') ||
-          message.includes('重複') && message.includes('打卡') ||
-          message.includes('當日已有') ||
-          message.includes('已經存在')) {
-        this.logger.info('檢測到補卡重複警告彈窗，自動點擊確定');
-        await dialog.accept();
-      } else {
-        this.logger.info('檢測到其他類型彈窗，自動點擊確定');
-        await dialog.accept();
-      }
-    });
-    
-    // 標記已設置過 dialog 處理器
-    (page as any)._hasDialogHandler = true;
   }
 
   private async performLogin(): Promise<void> {
@@ -664,8 +420,6 @@ class IntegratedAutoAttendanceSystemV2 {
   private async processAllAttendanceTasks(): Promise<void> {
     this.logger.info(`開始處理 ${this.attendanceTasks.length} 個補卡任務`);
     
-    let currentFormPage: Page | null = null;
-    
     for (let i = 0; i < this.attendanceTasks.length; i++) {
       this.currentTaskIndex = i;
       const task = this.attendanceTasks[i];
@@ -673,47 +427,10 @@ class IntegratedAutoAttendanceSystemV2 {
       this.logger.info(`[${i + 1}/${this.attendanceTasks.length}] 處理任務: ${task.displayName}`);
       
       try {
-        // 如果沒有開啟的表單頁面，需要開啟新的
-        if (!currentFormPage || currentFormPage.isClosed()) {
-          this.logger.info('開啟新的補卡表單頁面');
-          await this.clickForgetPunchLink();
-          currentFormPage = await this.waitForNewPageAndSwitch();
-        } else {
-          // 重用現有表單頁面，確保設置了 dialog 處理器
-          this.logger.info('重用現有表單頁面');
-          this.setupDialogHandler(currentFormPage);
-        }
-        
-        // 在表單頁面中處理任務
-        await this.fillAttendanceForm(currentFormPage, task);
-        const taskCompleted = await this.submitAttendanceForm(currentFormPage);
-        
-        if (taskCompleted) {
-          // 任務完成，表單已關閉
-          this.logger.success(`任務 ${task.displayName} 完成，表單已關閉`);
-          currentFormPage = null; // 重置，下次需要開啟新表單
-          
-          // 切換回表單申請頁面
-          await this.switchBackToMainPage();
-          
-        } else {
-          // 有警告，表單仍開啟，可以繼續處理下一個任務
-          this.logger.info(`任務 ${task.displayName} 有警告但已處理，在同一表單中繼續下一個任務`);
-          // currentFormPage 保持開啟狀態，繼續使用
-        }
-        
+        await this.processSingleAttendanceTask(task);
+        this.logger.success(`任務 ${task.displayName} 完成`);
       } catch (error) {
         this.logger.error(`任務 ${task.displayName} 失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
-        
-        // 清理：嘗試關閉可能開啟的表單頁面
-        if (currentFormPage && !currentFormPage.isClosed()) {
-          try {
-            await currentFormPage.close();
-          } catch (e) {
-            // 忽略關閉錯誤
-          }
-        }
-        
         throw error; // 依照 PRD 要求，任一任務失敗立即終止
       }
     }
@@ -721,96 +438,100 @@ class IntegratedAutoAttendanceSystemV2 {
     this.logger.success('所有補卡任務處理完成');
   }
 
-  private async switchBackToMainPage(): Promise<void> {
-    if (!this.browser) return;
-    
-    const pages = await this.browser.pages();
-    let formApplicationPage = null;
-    
-    // 尋找表單申請頁面（不是 about:blank）
-    for (const page of pages) {
-      const url = page.url();
-      if (url.includes('flow.mayohr.com/GAIA/bpm/applyform') || 
-          url.includes('apollo.mayohr.com') && !url.includes('about:blank')) {
-        formApplicationPage = page;
-        break;
-      }
-    }
-    
-    if (formApplicationPage) {
-      this.page = formApplicationPage;
-      await this.page.bringToFront();
-      this.logger.info('已切換回表單申請頁面', { url: this.page.url() });
-    } else {
-      // 如果找不到，使用第一個非空白頁面
-      const nonBlankPages = pages.filter(p => !p.url().includes('about:blank'));
-      if (nonBlankPages.length > 0) {
-        this.page = nonBlankPages[0];
-        await this.page.bringToFront();
-        this.logger.info('已切換回主頁面（非空白頁面）', { url: this.page.url() });
-      } else {
-        this.logger.warn('未找到合適的頁面，使用預設頁面');
-        this.page = pages[0];
-      }
-    }
-  }
-
-  // 這個方法現在已被 processAllAttendanceTasks 替代，保留作為參考
-  private async processSingleAttendanceTask_OLD(task: AttendanceTask): Promise<void> {
+  private async processSingleAttendanceTask(task: AttendanceTask): Promise<void> {
     if (!this.page) throw new Error('頁面未初始化');
     
-    // 點擊忘打卡申請單連結
-    await this.clickForgetPunchLink();
+    let formPage: Page;
     
-    // 等待新分頁開啟並切換
-    const newPage = await this.waitForNewPageAndSwitch();
+    // 檢查是否有現有的表單頁面可以重用
+    if (this.currentFormPage && !this.currentFormPage.isClosed()) {
+      this.logger.info('重用現有表單頁面');
+      formPage = this.currentFormPage;
+      
+      if (!this.hasDialogHandler) {
+        this.setupDialogHandler(formPage);
+        this.hasDialogHandler = true;
+      } else {
+        this.logger.info('分頁已設置 dialog 事件處理器，跳過');
+      }
+    } else {
+      // 開啟新的表單頁面
+      this.logger.info('開啟新的補卡表單頁面');
+      await this.clickForgetPunchLink();
+      formPage = await this.waitForNewPageAndSwitch();
+      this.currentFormPage = formPage;
+      this.hasDialogHandler = true;
+    }
     
     try {
-      // 在新分頁中處理表單
-      await this.fillAttendanceForm(newPage, task);
-      await this.submitAttendanceForm(newPage);
-    } finally {
-      // 安全地關閉新分頁：檢查分頁是否已關閉
-      try {
-        if (!newPage.isClosed()) {
-          await newPage.close();
-          this.logger.info('表單分頁已關閉');
-        } else {
-          this.logger.info('表單分頁已自動關閉');
-        }
-      } catch (closeError) {
-        this.logger.warn('關閉表單分頁時發生錯誤，可能已自動關閉', { error: closeError instanceof Error ? closeError.message : '未知錯誤' });
+      // 在表單頁面中處理
+      await this.fillAttendanceForm(formPage, task);
+      await this.submitAttendanceForm(formPage);
+      
+      // 檢查是否還有任務需要處理
+      const remainingTasks = this.attendanceTasks.length - this.currentTaskIndex - 1;
+      
+      if (formPage.isClosed()) {
+        // 表單已自動關閉，表示送簽成功
+        this.logger.success(`任務 ${task.displayName} 完成`);
+        this.currentFormPage = null;
+        this.hasDialogHandler = false;
+      } else if (remainingTasks > 0) {
+        // 表單仍開啟且有剩餘任務，可能是遇到重複警告，可以在同一表單繼續
+        this.logger.info(`任務 ${task.displayName} 有警告但已處理，在同一表單中繼續下一個任務`);
+        // 保持 currentFormPage 和 hasDialogHandler 狀態
+      } else {
+        // 最後一個任務，關閉表單
+        this.logger.success(`任務 ${task.displayName} 完成`);
+        this.currentFormPage = null;
+        this.hasDialogHandler = false;
       }
       
-      // 切換回表單申請頁面（不是空白頁面）
-      if (this.browser) {
-        const pages = await this.browser.pages();
-        let formApplicationPage = null;
-        
-        // 尋找表單申請頁面（不是 about:blank）
-        for (const page of pages) {
-          const url = page.url();
-          if (url.includes('flow.mayohr.com/GAIA/bpm/applyform') || 
-              url.includes('apollo.mayohr.com') && !url.includes('about:blank')) {
-            formApplicationPage = page;
-            break;
+    } finally {
+      // 只在程式結束或表單自動關閉時才清理
+      if (!this.currentFormPage || this.currentFormPage.isClosed()) {
+        // 安全地關閉新分頁：檢查分頁是否已關閉
+        try {
+          if (formPage && !formPage.isClosed()) {
+            await formPage.close();
+            this.logger.info('表單分頁已關閉');
+          } else {
+            this.logger.info('表單分頁已自動關閉');
           }
+        } catch (closeError) {
+          this.logger.warn('關閉表單分頁時發生錯誤，可能已自動關閉', { error: closeError instanceof Error ? closeError.message : '未知錯誤' });
         }
         
-        if (formApplicationPage) {
-          this.page = formApplicationPage;
-          await this.page.bringToFront();
-          this.logger.info('已切換回表單申請頁面', { url: this.page.url() });
-        } else {
-          // 如果找不到，使用第一個非空白頁面
-          const nonBlankPages = pages.filter(p => !p.url().includes('about:blank'));
-          if (nonBlankPages.length > 0) {
-            this.page = nonBlankPages[0];
+        // 切換回表單申請頁面
+        if (this.browser) {
+          const pages = await this.browser.pages();
+          let formApplicationPage = null;
+          
+          // 尋找表單申請頁面（不是 about:blank）
+          for (const page of pages) {
+            const url = page.url();
+            if (url.includes('flow.mayohr.com/GAIA/bpm/applyform') || 
+                url.includes('apollo.mayohr.com') && !url.includes('about:blank')) {
+              formApplicationPage = page;
+              break;
+            }
+          }
+          
+          if (formApplicationPage) {
+            this.page = formApplicationPage;
             await this.page.bringToFront();
-            this.logger.info('已切換回主頁面（非空白頁面）', { url: this.page.url() });
+            this.logger.info('已切換回表單申請頁面', { url: this.page.url() });
           } else {
-            this.logger.warn('未找到合適的頁面，使用預設頁面');
-            this.page = pages[0];
+            // 如果找不到，使用第一個非空白頁面
+            const nonBlankPages = pages.filter(p => !p.url().includes('about:blank'));
+            if (nonBlankPages.length > 0) {
+              this.page = nonBlankPages[0];
+              await this.page.bringToFront();
+              this.logger.info('已切換回主頁面（非空白頁面）', { url: this.page.url() });
+            } else {
+              this.logger.warn('未找到合適的頁面，使用預設頁面');
+              this.page = pages[0];
+            }
           }
         }
       }
@@ -820,79 +541,28 @@ class IntegratedAutoAttendanceSystemV2 {
   private async clickForgetPunchLink(): Promise<void> {
     if (!this.page) throw new Error('頁面未初始化');
     
-    // 確保我們在正確的頁面上
-    await this.ensureOnFormApplicationPage();
-    
-    // 在重複任務中，給頁面更多時間穩定
-    if (this.currentTaskIndex > 0) {
-      this.logger.info('非首次任務，等待頁面穩定...');
-      await this.page.waitForTimeout(3000);
-    }
-    
-    this.logger.info('尋找忘打卡申請單連結...');
-    
     try {
       const link = await this.page.waitForSelector(SELECTORS.FORM_APPLICATION.FORGET_PUNCH_LINK, { 
         timeout: CONFIG.TIMEOUTS.ELEMENT_WAIT 
       });
       if (link) {
         await link.click();
-        this.logger.info('成功點擊忘打卡申請單連結');
       } else {
         throw new Error('找不到忘打卡申請單連結');
       }
     } catch (error) {
       // 嘗試替代選擇器
-      try {
-        const altLink = await this.page.waitForSelector(SELECTORS.FORM_APPLICATION.FORGET_PUNCH_LINK_ALT, { 
-          timeout: CONFIG.TIMEOUTS.ELEMENT_WAIT 
-        });
-        if (altLink) {
-          await altLink.click();
-          this.logger.info('成功點擊忘打卡申請單連結（替代選擇器）');
-        } else {
-          throw new Error('找不到忘打卡申請單連結（包含替代選擇器）');
-        }
-      } catch (altError) {
-        await this.logger.takeScreenshot(this.page, 'forget_punch_link_not_found');
+      const altLink = await this.page.waitForSelector(SELECTORS.FORM_APPLICATION.FORGET_PUNCH_LINK_ALT, { 
+        timeout: CONFIG.TIMEOUTS.ELEMENT_WAIT 
+      });
+      if (altLink) {
+        await altLink.click();
+      } else {
         throw new Error('找不到忘打卡申請單連結（包含替代選擇器）');
       }
     }
     
-    // 點擊後等待更長時間，給系統處理時間
-    await this.page.waitForTimeout(2000);
-  }
-
-  private async ensureOnFormApplicationPage(): Promise<void> {
-    if (!this.page) throw new Error('頁面未初始化');
-    
-    const currentUrl = this.page.url();
-    this.logger.info('檢查當前頁面', { url: currentUrl });
-    
-    // 如果不在表單申請頁面，嘗試導航到表單申請頁面
-    if (!currentUrl.includes('flow.mayohr.com/GAIA/bpm/applyform')) {
-      this.logger.warn('不在表單申請頁面，嘗試重新導航');
-      
-      // 檢查是否有其他分頁是表單申請頁面
-      if (this.browser) {
-        const pages = await this.browser.pages();
-        for (const page of pages) {
-          const url = page.url();
-          if (url.includes('flow.mayohr.com/GAIA/bpm/applyform')) {
-            this.page = page;
-            await this.page.bringToFront();
-            this.logger.info('找到並切換到表單申請頁面', { url });
-            return;
-          }
-        }
-      }
-      
-      // 如果沒有找到，重新導航
-      await this.navigateToFormApplication();
-    }
-    
-    // 等待頁面穩定
-    await this.page.waitForTimeout(1000);
+    await this.page.waitForTimeout(CONFIG.DELAYS.CLICK_DELAY);
   }
 
   private async waitForNewPageAndSwitch(): Promise<Page> {
@@ -900,57 +570,44 @@ class IntegratedAutoAttendanceSystemV2 {
     
     const pages = await this.browser.pages();
     const initialPageCount = pages.length;
-    this.logger.info(`等待新分頁開啟，當前分頁數量: ${initialPageCount}`);
     
     let attempts = 0;
-    const maxAttempts = 3; // 減少檢查次數到 3 次
+    const maxAttempts = 10;
     
     while (attempts < maxAttempts) {
       const currentPages = await this.browser.pages();
-      this.logger.info(`第 ${attempts + 1} 次檢查，當前分頁數量: ${currentPages.length}`);
-      
       if (currentPages.length > initialPageCount) {
         const newPage = currentPages[currentPages.length - 1];
-        const newPageUrl = newPage.url();
-        this.logger.info(`發現新分頁: ${newPageUrl}`);
-        
-        // 等待新分頁載入
         await newPage.waitForTimeout(CONFIG.TIMEOUTS.FORM_LOAD);
         
-        // 檢查是否為表單頁面
-        if (newPageUrl.includes('BPM/Form/List') || newPageUrl === 'about:blank') {
-          this.logger.info('新分頁為表單頁面，等待完全載入');
-          await newPage.waitForTimeout(2000); // 額外等待
-          
-          // 為新分頁設置 dialog 事件處理器
-          this.setupDialogHandler(newPage);
-          
-          return newPage;
-        }
+        // 為新分頁設置原生對話框處理器
+        this.setupDialogHandler(newPage);
+        
+        return newPage;
       }
-      
-      await this.page!.waitForTimeout(2000); // 增加等待時間到 2 秒
+      await this.page!.waitForTimeout(500);
       attempts++;
     }
     
-    // 如果沒有檢測到新分頁，檢查是否有其他表單分頁
-    const allPages = await this.browser.pages();
-    this.logger.info(`檢查所有分頁中是否有表單頁面，總分頁數: ${allPages.length}`);
-    
-    for (const page of allPages) {
-      const url = page.url();
-      this.logger.info(`檢查分頁 URL: ${url}`);
-      if (url.includes('BPM/Form/List')) {
-        this.logger.info('找到已存在的表單分頁，使用該分頁');
-        
-        // 為已存在的表單分頁設置 dialog 事件處理器
-        this.setupDialogHandler(page);
-        
-        return page;
-      }
-    }
-    
     throw new Error('等待新分頁開啟超時');
+  }
+
+  private setupDialogHandler(page: Page): void {
+    this.logger.info('為分頁設置 dialog 事件處理器');
+    
+    page.on('dialog', async (dialog) => {
+      const message = dialog.message();
+      this.logger.info(`檢測到瀏覽器原生彈窗: ${message}`);
+      
+      // 檢查是否為補卡重複警告
+      if (message.includes('當日已有') && (message.includes('上班') || message.includes('下班')) && message.includes('打卡紀錄')) {
+        this.logger.info('檢測到補卡重複警告彈窗，自動點擊確定');
+        await dialog.accept();
+      } else {
+        this.logger.info('檢測到其他彈窗，自動點擊確定');
+        await dialog.accept();
+      }
+    });
   }
 
   private async fillAttendanceForm(page: Page, task: AttendanceTask): Promise<void> {
@@ -962,7 +619,7 @@ class IntegratedAutoAttendanceSystemV2 {
     // 等待並切換到 main iframe
     const mainFrame = await this.waitForFrame(page, SELECTORS.IFRAMES.MAIN);
     
-    // 按照 PRD 要求，填寫順序為：
+    // 按照 PRD 要求，只處理這三個欄位：
     // 1. 類型
     this.logger.info('開始填寫類型欄位');
     await this.selectAttendanceType(mainFrame, task.type);
@@ -1219,7 +876,7 @@ class IntegratedAutoAttendanceSystemV2 {
     await frame.waitForTimeout(CONFIG.DELAYS.FORM_FILL_DELAY);
   }
 
-  private async submitAttendanceForm(page: Page): Promise<boolean> {
+  private async submitAttendanceForm(page: Page): Promise<void> {
     this.logger.info('準備送簽表單');
     
     // 切換到 banner iframe 找送簽按鈕
@@ -1245,43 +902,49 @@ class IntegratedAutoAttendanceSystemV2 {
       }
     }
     
-    // 處理送簽後的結果（包含警告處理），返回是否完成任務
-    const taskCompleted = await this.handleSubmitResult(page);
+    // 處理可能的確認對話框和送簽結果
+    await this.handleSubmitResult(page);
     
-    this.logger.success('表單送簽處理完成');
-    return taskCompleted;
+    this.logger.success('表單送簽完成');
   }
 
-  private async handleSubmitResult(page: Page): Promise<boolean> {
+  private async handleSubmitResult(page: Page): Promise<void> {
     this.logger.info('處理送簽結果...');
     
     try {
-      // 等待一段時間讓系統處理送簽，也讓原生彈窗事件處理器有時間執行
+      // 先處理可能的確認對話框
+      await this.handleConfirmationDialog(page);
+      
+      // 等待一段時間檢查送簽結果
       await page.waitForTimeout(CONFIG.DELAYS.AFTER_SUBMIT_DELAY);
       
       // 檢查頁面是否已關閉（成功的情況）
       if (page.isClosed()) {
         this.logger.success('表單分頁已自動關閉，送簽成功');
-        return true; // 返回 true 表示任務完成，表單已關閉
+        return;
       }
       
-      // 如果頁面還開著，等待一段時間再檢查一次
-      // 因為瀏覽器原生彈窗處理需要時間
-      await page.waitForTimeout(1000);
+      // 如果頁面還開著，可能有提示訊息需要處理
+      this.logger.info('表單分頁仍開啟，檢查是否有提示訊息...');
       
-      if (page.isClosed()) {
-        this.logger.success('表單分頁已關閉，送簽成功');
-        return true;
+      // 檢查是否有「當日已有打卡紀錄」提示
+      try {
+        // 等待可能的提示訊息彈出
+        await page.waitForTimeout(1000);
+        
+        // 檢查頁面是否仍然開啟
+        if (!page.isClosed()) {
+          this.logger.info('表單分頁仍開啟，可能遇到重複補卡警告，已由原生彈窗處理器處理');
+        } else {
+          this.logger.success('表單分頁已自動關閉，送簽成功');
+        }
+      } catch (error) {
+        this.logger.warn('檢查提示訊息時發生錯誤', { error: error instanceof Error ? error.message : '未知錯誤' });
       }
-      
-      // 如果頁面仍開啟，假設是因為重複補卡警告
-      // 在此情況下，表單仍可用於下一個任務
-      this.logger.info('表單分頁仍開啟，可能遇到重複補卡警告，已由原生彈窗處理器處理');
-      return false; // 返回 false 表示有警告，表單未關閉，可繼續使用
       
     } catch (error) {
-      this.logger.error('處理送簽結果時發生錯誤', { error: error instanceof Error ? error.message : '未知錯誤' });
-      return false;
+      this.logger.error('處理送簽結果失敗', { error: error instanceof Error ? error.message : '未知錯誤' });
+      throw error;
     }
   }
 
@@ -1308,9 +971,6 @@ class IntegratedAutoAttendanceSystemV2 {
     try {
       this.logger.info('=== 開始整合版自動補卡程式 v2 ===');
       this.logger.info(`載入配置: ${this.userConfig.attendanceRecords.length} 筆補卡記錄，展開為 ${this.attendanceTasks.length} 個任務`);
-      
-      // 環境檢查
-      await SystemChecker.checkEnvironment();
       
       // Phase 1: 登入流程
       this.logger.info('>>> Phase 1: 開始登入流程');

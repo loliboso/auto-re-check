@@ -1,6 +1,3 @@
-# Archive folder (development files)
-archive/
-
 # Dependencies
 node_modules/
 npm-debug.log*
@@ -20,6 +17,9 @@ dist/
 # Sensitive data files
 data/user-info.txt
 data/attendance-records.txt
+
+# Archive folder (contains old files and sensitive data)
+archive/
 
 # Log files
 logs/*.log

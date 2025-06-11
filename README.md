@@ -29,7 +29,7 @@ cd auto-re-check
 npm install
 
 # 3. 編譯程式（確認安裝成功）
-npm run check
+npm run build
 ```
 
 ### 3. 設定個人資訊
