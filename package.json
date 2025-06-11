@@ -8,7 +8,9 @@
     "start": "npm run build && node dist/integrated-main-v2.js",
     "dev": "npx tsx src/integrated-main-v2.ts",
     "clean": "rm -rf dist",
-    "auto-punch": "npm run build && node dist/integrated-main-v2.js"
+    "auto-punch": "npm run build && node dist/integrated-main-v2.js",
+    "check": "echo '🔍 檢查系統環境...' && node --version && npm --version && echo '✅ Node.js 和 npm 運作正常' && npm run build > /dev/null && echo '✅ TypeScript 編譯成功' && echo '🎉 所有檢查都通過！'",
+    "logs": "ls -t logs/ | head -1 | xargs -I {} cat logs/{}"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

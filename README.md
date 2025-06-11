@@ -15,20 +15,46 @@
 ### 1. 環境需求
 - macOS 系統
 - Google Chrome 瀏覽器
-- Node.js (建議 v16 以上)
+- ~~Node.js (建議 v16 以上)~~ ← 現在可以自動安裝！
 
 ### 2. 安裝步驟
-**請開啟終端機（Terminal）執行以下命令：**
+
+#### 🎯 方法一：一鍵自動安裝（推薦）
+**開啟終端機（Terminal）並執行：**
 
 ```bash
-# 1. 下載專案（首次使用）
+# 1. 下載專案
 git clone https://github.com/loliboso/auto-re-check.git
 cd auto-re-check
 
-# 2. 安裝依賴套件
+# 2. 一鍵安裝所有環境（包括 Node.js）
+./install.sh
+```
+
+**自動安裝腳本會幫您：**
+- ✅ 安裝 Xcode Command Line Tools（如果需要）
+- ✅ 安裝 Homebrew（如果需要）
+- ✅ 安裝 Node.js（如果需要）
+- ✅ 檢查 Google Chrome
+- ✅ 安裝專案依賴套件
+- ✅ 編譯並驗證程式
+
+#### 🔧 方法二：手動安裝
+**如果您偏好手動安裝，請執行：**
+
+```bash
+# 1. 下載專案
+git clone https://github.com/loliboso/auto-re-check.git
+cd auto-re-check
+
+# 2. 手動安裝 Node.js（如果尚未安裝）
+# 到 https://nodejs.org 下載 LTS 版本，或使用 Homebrew：
+brew install node
+
+# 3. 安裝依賴套件
 npm install
 
-# 3. 編譯程式（確認安裝成功）
+# 4. 編譯程式
 npm run build
 ```
 
@@ -89,7 +115,18 @@ cd auto-re-check
 ```
 
 ### 步驟 3: 安裝程式
+
+#### 🎯 推薦方式：使用自動安裝腳本
 ```bash
+./install.sh
+```
+
+#### 🔧 手動方式：
+```bash
+# 確保已安裝 Node.js（如果尚未安裝）
+brew install node
+
+# 安裝專案依賴
 npm install
 npm run check  # 確認安裝成功
 ```
@@ -146,10 +183,21 @@ xcode-select --install
 ```
 
 **Q: 終端機顯示 "command not found: npm"？**
-A: 需要安裝 Node.js：
-1. 到 [nodejs.org](https://nodejs.org) 下載 LTS 版本
-2. 安裝後重新開啟終端機
-3. 執行 `node --version` 確認安裝成功
+A: 使用自動安裝腳本，或手動安裝 Node.js：
+```bash
+# 方法 1: 使用自動安裝腳本（推薦）
+./install.sh
+
+# 方法 2: 手動安裝
+brew install node
+```
+
+**Q: 自動安裝腳本執行失敗？**
+A: 請確認：
+1. 系統為 macOS
+2. 有網路連線
+3. 有管理員權限（可能需要輸入密碼）
+4. 重新執行 `./install.sh`
 
 **Q: 程式顯示 Chrome 路徑錯誤？**
 A: 確認 Chrome 安裝在 `/Applications/Google Chrome.app/`
