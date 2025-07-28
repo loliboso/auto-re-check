@@ -470,7 +470,8 @@ class IntegratedAutoAttendanceSystemV2 {
     let formPage: Page;
     
     // 檢查是否有現有的表單頁面可以重用
-    if (this.currentFormPage && !this.currentFormPage.isClosed()) {
+    const canReuseFormPage = await this.isFormPageUsable();
+    if (canReuseFormPage && this.currentFormPage) {
       this.logger.info('重用現有表單頁面');
       formPage = this.currentFormPage;
       
@@ -639,6 +640,18 @@ class IntegratedAutoAttendanceSystemV2 {
   private async fillAttendanceForm(page: Page, task: AttendanceTask): Promise<void> {
     this.logger.info(`填寫表單: ${task.displayName}`);
     
+    // 檢查頁面是否仍然可用
+    if (page.isClosed()) {
+      throw new Error('表單頁面已關閉，無法填寫');
+    }
+    
+    try {
+      // 檢查頁面響應性
+      await page.evaluate(() => document.readyState);
+    } catch (error) {
+      throw new Error(`表單頁面無法響應: ${error instanceof Error ? error.message : '未知錯誤'}`);
+    }
+    
     // 截圖：表單載入後
     await this.logger.takeScreenshot(page, 'form_loaded');
     
@@ -665,15 +678,30 @@ class IntegratedAutoAttendanceSystemV2 {
   }
 
   private async waitForFrame(page: Page, selector: string): Promise<Frame> {
-    await page.waitForSelector(selector, { timeout: CONFIG.TIMEOUTS.IFRAME_WAIT });
-    const frameElement = await page.$(selector);
-    const frame = await frameElement?.contentFrame();
-    
-    if (!frame) {
-      throw new Error(`無法取得 iframe: ${selector}`);
+    try {
+      // 檢查頁面是否仍然可用
+      if (page.isClosed()) {
+        throw new Error('頁面已關閉，無法等待 iframe');
+      }
+      
+      await page.waitForSelector(selector, { timeout: CONFIG.TIMEOUTS.IFRAME_WAIT });
+      const frameElement = await page.$(selector);
+      const frame = await frameElement?.contentFrame();
+      
+      if (!frame) {
+        throw new Error(`無法取得 iframe: ${selector}`);
+      }
+      
+      return frame;
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message.includes('Session closed') || error.message.includes('Protocol error')) {
+          throw new Error('頁面連線已斷開，無法存取 iframe');
+        }
+        throw error;
+      }
+      throw new Error(`等待 iframe 時發生未知錯誤: ${selector}`);
     }
-    
-    return frame;
   }
 
   // === 精確的表單填寫方法（只操作指定欄位） ===
@@ -1206,6 +1234,33 @@ class IntegratedAutoAttendanceSystemV2 {
           this.logger.warn('關閉瀏覽器時發生錯誤', { error: closeError });
         }
       }
+    }
+  }
+
+  private async isFormPageUsable(): Promise<boolean> {
+    if (!this.currentFormPage || this.currentFormPage.isClosed()) {
+      return false;
+    }
+    
+    try {
+      // 嘗試檢查頁面是否仍可訪問
+      await this.currentFormPage.evaluate(() => document.readyState);
+      
+      // 檢查是否還能找到主要的 iframe
+      const mainSelector = SELECTORS.IFRAMES.MAIN;
+      const elementExists = await this.currentFormPage.$(mainSelector).then(el => !!el).catch(() => false);
+      
+      if (!elementExists) {
+        this.logger.warn('表單頁面缺少主要 iframe，不可重用');
+        return false;
+      }
+      
+      return true;
+    } catch (error) {
+      this.logger.warn('檢查表單頁面可用性時發生錯誤', { 
+        error: error instanceof Error ? error.message : '未知錯誤' 
+      });
+      return false;
     }
   }
 }
