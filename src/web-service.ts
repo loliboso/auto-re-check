@@ -31,7 +31,8 @@ const CONFIG = {
   },
   URLS: {
     LOGIN_URL: 'https://apollo.mayohr.com',
-    APPLY_FORM_URL: 'https://flow.mayohr.com/GAIA/bpm/applyform?moduleType=apply&companyCode=TNLMG&muid=b154c3d6-7337-4af6-aff2-49cf849cde9b'
+    MAIN_PAGE_URL: 'https://apollo.mayohr.com/tube',
+    // 注意：APPLY_FORM_URL 會在登入後動態獲取，因為 muid 參數會變化
   },
   TIMEOUTS: {
     PAGE_LOAD: 30000,
@@ -290,10 +291,11 @@ class CloudAutoAttendanceSystem {
   private async navigateToFormApplication(): Promise<void> {
     if (!this.page) throw new Error('頁面未初始化');
 
-    this.logger.info('正在導航到表單申請頁面...');
-    this.updateStatus({ progress: '正在導航到表單申請頁面...' });
+    this.logger.info('正在導航到主頁面...');
+    this.updateStatus({ progress: '正在導航到主頁面...' });
 
-    await this.page.goto(CONFIG.URLS.APPLY_FORM_URL, { 
+    // 步驟 1: 導航到主頁面
+    await this.page.goto(CONFIG.URLS.MAIN_PAGE_URL, { 
       waitUntil: 'networkidle2',
       timeout: CONFIG.TIMEOUTS.NAVIGATION_WAIT 
     });
@@ -301,10 +303,38 @@ class CloudAutoAttendanceSystem {
     // 等待頁面載入
     await this.page.waitForTimeout(CONFIG.DELAYS.NAVIGATION_DELAY);
 
-    // 檢查頁面結構
-    await this.checkPageStructure();
+    // 檢查當前頁面
+    const currentUrl = this.page.url();
+    this.logger.info(`當前頁面 URL: ${currentUrl}`);
 
-    this.logger.success('已到達表單申請頁面');
+    // 步驟 2: 點擊「表單申請」連結
+    this.logger.info('正在尋找並點擊「表單申請」連結...');
+    this.updateStatus({ progress: '正在尋找並點擊「表單申請」連結...' });
+
+    try {
+      // 等待表單申請連結出現
+      await this.page.waitForSelector(SELECTORS.MAIN_PAGE.FORM_APPLICATION_LINK, { 
+        timeout: CONFIG.TIMEOUTS.ELEMENT_WAIT 
+      });
+      
+      // 點擊表單申請連結
+      await this.page.click(SELECTORS.MAIN_PAGE.FORM_APPLICATION_LINK);
+      
+      // 等待新頁面載入
+      await this.page.waitForTimeout(CONFIG.DELAYS.NAVIGATION_DELAY);
+      
+      // 檢查新頁面 URL
+      const newUrl = this.page.url();
+      this.logger.info(`表單申請頁面 URL: ${newUrl}`);
+      
+      // 檢查頁面結構
+      await this.checkPageStructure();
+      
+      this.logger.success('已成功導航到表單申請頁面');
+    } catch (error) {
+      this.logger.error(`點擊表單申請連結失敗: ${error}`);
+      throw new Error(`無法找到或點擊「表單申請」連結。當前頁面: ${currentUrl}`);
+    }
   }
 
   private async checkPageStructure(): Promise<void> {
@@ -413,6 +443,10 @@ class CloudAutoAttendanceSystem {
     // 等待頁面完全載入
     await this.page.waitForTimeout(3000);
 
+    // 檢查當前頁面 URL
+    const currentUrl = this.page.url();
+    this.logger.info(`當前頁面 URL: ${currentUrl}`);
+
     // 嘗試多個可能的選擇器
     const possibleSelectors = [
       // 精確匹配你提供的 HTML 結構
@@ -447,10 +481,11 @@ class CloudAutoAttendanceSystem {
     }
 
     if (!clicked) {
-      // 如果所有選擇器都失敗，嘗試截圖並拋出詳細錯誤
+      // 如果所有選擇器都失敗，檢查頁面結構並拋出詳細錯誤
+      await this.checkPageStructure();
       const screenshot = await this.page.screenshot({ fullPage: true });
       this.logger.error('無法找到忘記打卡連結，已截圖保存');
-      throw new Error('無法找到忘記打卡連結，請檢查頁面結構是否變更');
+      throw new Error(`無法找到忘記打卡連結。當前頁面: ${currentUrl}，請檢查是否在正確的表單申請頁面`);
     }
 
     await this.page.waitForTimeout(CONFIG.DELAYS.CLICK_DELAY);
