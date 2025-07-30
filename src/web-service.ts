@@ -137,14 +137,19 @@ interface TaskStatus {
 // === 雲端日誌服務 ===
 class CloudLogService {
   private taskId: string;
+  private updateStatus: (status: Partial<TaskStatus>) => void;
 
-  constructor(taskId: string) {
+  constructor(taskId: string, updateStatus: (status: Partial<TaskStatus>) => void) {
     this.taskId = taskId;
+    this.updateStatus = updateStatus;
   }
 
   private log(level: string, message: string): void {
     const timestamp = new Date().toISOString();
     console.log(`[${timestamp}] [${level}] [${this.taskId}] ${message}`);
+    
+    // 同時更新前端狀態
+    this.updateStatus({ progress: message });
   }
 
   info(message: string): void {
@@ -229,7 +234,7 @@ class CloudAutoAttendanceSystem {
     attendanceTasks: AttendanceTask[],
     updateStatus: (status: Partial<TaskStatus>) => void
   ) {
-    this.logger = new CloudLogService(taskId);
+    this.logger = new CloudLogService(taskId, updateStatus);
     this.loginInfo = loginInfo;
     this.attendanceTasks = attendanceTasks;
     this.updateStatus = updateStatus;
@@ -449,11 +454,17 @@ class CloudAutoAttendanceSystem {
   private async clickForgetPunchLink(): Promise<void> {
     if (!this.page) throw new Error('頁面未初始化');
     
+    // 檢查當前頁面 URL
+    const currentUrl = this.page.url();
+    this.logger.info(`準備點擊忘打卡申請單連結，當前頁面: ${currentUrl}`);
+    
     try {
+      this.logger.info('等待忘打卡申請單連結出現...');
       const link = await this.page.waitForSelector(SELECTORS.FORM_APPLICATION.FORGET_PUNCH_LINK, { 
         timeout: CONFIG.TIMEOUTS.ELEMENT_WAIT 
       });
       if (link) {
+        this.logger.info('找到忘打卡申請單連結，準備點擊...');
         await link.click();
         this.logger.success('成功點擊忘打卡申請單連結');
       } else {
@@ -466,12 +477,14 @@ class CloudAutoAttendanceSystem {
         timeout: CONFIG.TIMEOUTS.ELEMENT_WAIT 
       });
       if (altLink) {
+        this.logger.info('找到替代選擇器連結，準備點擊...');
         await altLink.click();
         this.logger.success('成功點擊忘打卡申請單連結（替代選擇器）');
       } else {
         // 如果還是失敗，檢查頁面結構
+        this.logger.error('所有選擇器都失敗，檢查頁面結構...');
         await this.checkPageStructure();
-        throw new Error('找不到忘打卡申請單連結（包含替代選擇器）');
+        throw new Error(`找不到忘打卡申請單連結。當前頁面: ${currentUrl}`);
       }
     }
     
