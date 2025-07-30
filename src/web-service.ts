@@ -427,43 +427,108 @@ class CloudAutoAttendanceSystem {
 
     this.logger.info(`開始處理任務: ${task.displayName}`);
 
-    // 點擊忘記打卡連結
-    await this.clickForgetPunchLink();
+    let formPage: Page;
 
-    // 等待新頁面並切換
-    this.logger.info('等待新分頁開啟並切換...');
-    this.currentFormPage = await this.waitForNewPageAndSwitch();
+    // 檢查是否有現有的表單頁面可以重用
+    const canReuseFormPage = await this.isFormPageUsable();
+    if (canReuseFormPage && this.currentFormPage) {
+      this.logger.info('重用現有表單頁面');
+      formPage = this.currentFormPage;
 
-    // 檢查新分頁是否可用
-    if (this.currentFormPage.isClosed()) {
-      throw new Error('新分頁已關閉，無法繼續處理');
-    }
-
-    // 設置對話框處理器
-    if (!this.hasDialogHandler) {
-      this.setupDialogHandler(this.currentFormPage);
+      if (!this.hasDialogHandler) {
+        this.setupDialogHandler(formPage);
+        this.hasDialogHandler = true;
+      } else {
+        this.logger.info('分頁已設置 dialog 事件處理器，跳過');
+      }
+    } else {
+      // 開啟新的表單頁面
+      this.logger.info('開啟新的補卡表單頁面');
+      await this.clickForgetPunchLink();
+      formPage = await this.waitForNewPageAndSwitch();
+      this.currentFormPage = formPage;
       this.hasDialogHandler = true;
     }
 
-    // 填寫補卡表單
-    this.logger.info('開始填寫補卡表單...');
-    await this.fillAttendanceForm(this.currentFormPage, task);
+    try {
+      // 在表單頁面中處理
+      this.logger.info('開始填寫補卡表單...');
+      await this.fillAttendanceForm(formPage, task);
+      
+      this.logger.info('提交表單...');
+      await this.submitAttendanceForm(formPage);
 
-    // 提交表單
-    this.logger.info('提交表單...');
-    await this.submitAttendanceForm(this.currentFormPage);
+      this.logger.info('處理提交結果...');
+      await this.handleSubmitResult(formPage);
 
-    // 處理提交結果
-    this.logger.info('處理提交結果...');
-    await this.handleSubmitResult(this.currentFormPage);
+      // 檢查是否還有任務需要處理
+      const remainingTasks = this.attendanceTasks.length - 1; // 簡化計算
 
-    // 關閉表單頁面
-    this.logger.info('關閉表單頁面...');
-    await this.currentFormPage.close();
-    this.currentFormPage = null;
-    this.hasDialogHandler = false;
+      if (formPage.isClosed()) {
+        // 表單已自動關閉，表示送簽成功
+        this.logger.success(`任務 ${task.displayName} 完成`);
+        this.currentFormPage = null;
+        this.hasDialogHandler = false;
+      } else if (remainingTasks > 0) {
+        // 表單仍開啟且有剩餘任務，可能是遇到重複警告，可以在同一表單繼續
+        this.logger.info(`任務 ${task.displayName} 有警告但已處理，在同一表單中繼續下一個任務`);
+        // 保持 currentFormPage 和 hasDialogHandler 狀態
+      } else {
+        // 最後一個任務，關閉表單
+        this.logger.success(`任務 ${task.displayName} 完成`);
+        this.currentFormPage = null;
+        this.hasDialogHandler = false;
+      }
 
-    this.logger.success(`任務完成: ${task.displayName}`);
+    } finally {
+      // 只在程式結束或表單自動關閉時才清理
+      if (!this.currentFormPage || this.currentFormPage.isClosed()) {
+        // 安全地關閉新分頁：檢查分頁是否已關閉
+        try {
+          if (formPage && !formPage.isClosed()) {
+            await formPage.close();
+            this.logger.info('表單分頁已關閉');
+          } else {
+            this.logger.info('表單分頁已自動關閉');
+          }
+        } catch (closeError) {
+          this.logger.warn('關閉表單分頁時發生錯誤，可能已自動關閉');
+        }
+
+        // 切換回表單申請頁面
+        if (this.browser) {
+          const pages = await this.browser.pages();
+          let formApplicationPage = null;
+
+          // 尋找表單申請頁面（不是 about:blank）
+          for (const page of pages) {
+            const url = page.url();
+            if (url.includes('flow.mayohr.com/GAIA/bpm/applyform') || 
+                url.includes('apollo.mayohr.com') && !url.includes('about:blank')) {
+              formApplicationPage = page;
+              break;
+            }
+          }
+
+          if (formApplicationPage) {
+            this.page = formApplicationPage;
+            await this.page.bringToFront();
+            this.logger.info('已切換回表單申請頁面');
+          } else {
+            // 如果找不到，使用第一個非空白頁面
+            const nonBlankPages = pages.filter(p => !p.url().includes('about:blank'));
+            if (nonBlankPages.length > 0) {
+              this.page = nonBlankPages[0];
+              await this.page.bringToFront();
+              this.logger.info('已切換回主頁面（非空白頁面）');
+            } else {
+              this.logger.warn('未找到合適的頁面，使用預設頁面');
+              this.page = pages[0];
+            }
+          }
+        }
+      }
+    }
   }
 
   private async clickForgetPunchLink(): Promise<void> {
@@ -720,6 +785,31 @@ class CloudAutoAttendanceSystem {
 
     // 等待處理完成
     await page.waitForTimeout(CONFIG.DELAYS.AFTER_SUBMIT_DELAY);
+  }
+
+  private async isFormPageUsable(): Promise<boolean> {
+    if (!this.currentFormPage || this.currentFormPage.isClosed()) {
+      return false;
+    }
+
+    try {
+      // 嘗試檢查頁面是否仍可訪問
+      await this.currentFormPage.evaluate(() => document.readyState);
+
+      // 檢查是否還能找到主要的 iframe
+      const mainSelector = SELECTORS.IFRAMES.MAIN;
+      const elementExists = await this.currentFormPage.$(mainSelector).then(el => !!el).catch(() => false);
+
+      if (!elementExists) {
+        this.logger.warn('表單頁面缺少主要 iframe，不可重用');
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      this.logger.warn('檢查表單頁面可用性時發生錯誤');
+      return false;
+    }
   }
 
   async run(): Promise<void> {
