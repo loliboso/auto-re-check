@@ -915,57 +915,164 @@ class CloudAutoAttendanceSystem {
   }
 
   private async navigateToTargetMonth(frame: Frame, targetYear: number, targetMonth: number): Promise<void> {
+    this.logger.info(`導航到目標月份: ${targetYear}年${targetMonth}月`);
+    
+    // 等待日曆完全載入
+    await frame.waitForSelector('.k-calendar', { timeout: CONFIG.TIMEOUTS.ELEMENT_WAIT });
+    await frame.waitForTimeout(CONFIG.DELAYS.CLICK_DELAY);
+    
+    // 獲取當前顯示的年月 - 根據 Kendo UI 文件和實際截圖
     const getCurrentMonth = async (): Promise<{ year: number; month: number } | null> => {
-      try {
-        const monthText = await frame.$eval('.k-calendar-header .k-link', el => el.textContent);
-        if (!monthText) return null;
+      return await frame.evaluate(() => {
+        // 月份標題通常在 .k-nav-fast 中，格式可能是 "六月 2025" 或 "June 2025"
+        const titleElement = document.querySelector('.k-nav-fast');
+        if (!titleElement || !titleElement.textContent) {
+          return null;
+        }
         
-        const match = monthText.match(/(\d{4})年(\d{1,2})月/);
-        if (!match) return null;
+        const titleText = titleElement.textContent.trim();
         
-        return {
-          year: parseInt(match[1]),
-          month: parseInt(match[2])
-        };
-      } catch (error) {
+        // 嘗試解析中文格式 "六月 2025"
+        const chineseMatch = titleText.match(/([一二三四五六七八九十]+)月\s*(\d{4})/);
+        if (chineseMatch) {
+          const monthMap: { [key: string]: number } = {
+            '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6,
+            '七': 7, '八': 8, '九': 9, '十': 10, '十一': 11, '十二': 12
+          };
+          const month = monthMap[chineseMatch[1]];
+          const year = parseInt(chineseMatch[2]);
+          if (month && year) {
+            return { year, month };
+          }
+        }
+        
+        // 嘗試解析英文格式 "June 2025" 或其他可能格式
+        const englishMatch = titleText.match(/(\w+)\s*(\d{4})/);
+        if (englishMatch) {
+          const monthMap: { [key: string]: number } = {
+            'January': 1, 'February': 2, 'March': 3, 'April': 4,
+            'May': 5, 'June': 6, 'July': 7, 'August': 8,
+            'September': 9, 'October': 10, 'November': 11, 'December': 12
+          };
+          const month = monthMap[englishMatch[1]];
+          const year = parseInt(englishMatch[2]);
+          if (month && year) {
+            return { year, month };
+          }
+        }
+        
+        // 如果無法解析，返回 null
         return null;
-      }
+      });
     };
-
-    let currentMonth = await getCurrentMonth();
-    if (!currentMonth) throw new Error('無法取得當前月份');
-
-    // 計算需要點擊的次數
-    const currentTotal = currentMonth.year * 12 + currentMonth.month;
-    const targetTotal = targetYear * 12 + targetMonth;
-    const clicks = targetTotal - currentTotal;
-
-    if (clicks > 0) {
-      // 向前點擊
-      for (let i = 0; i < clicks; i++) {
-        await frame.click('.k-calendar-header .k-link.k-nav-next');
-        await frame.waitForTimeout(200);
+    
+    // 獲取當前月份
+    let currentYearMonth = await getCurrentMonth();
+    if (!currentYearMonth) {
+      this.logger.warn('無法解析當前年月，嘗試使用當前日期');
+      const now = new Date();
+      currentYearMonth = {
+        year: now.getFullYear(),
+        month: now.getMonth() + 1 // JavaScript 月份從 0 開始
+      };
+    }
+    
+    this.logger.info(`當前顯示: ${currentYearMonth.year}年${currentYearMonth.month}月`);
+    this.logger.info(`目標日期: ${targetYear}年${targetMonth}月`);
+    
+    // 如果年份不同，記錄警告但不處理（一般補卡都在當年）
+    if (currentYearMonth.year !== targetYear) {
+      this.logger.warn(`年份不同，當前: ${currentYearMonth.year}, 目標: ${targetYear}`);
+    }
+    
+    // 計算需要導航的月份差
+    let monthDiff = targetMonth - currentYearMonth.month;
+    this.logger.info(`月份差: ${monthDiff}`);
+    
+    // 導航到目標月份
+    let attempts = 0;
+    const maxAttempts = 12; // 最多嘗試 12 次（一年）
+    
+    while (monthDiff !== 0 && attempts < maxAttempts) {
+      attempts++;
+      
+      if (monthDiff > 0) {
+        // 需要往後翻月（下個月）
+        this.logger.info(`點擊下一月按鈕 (剩餘 ${monthDiff} 個月)`);
+        await frame.click('.k-nav-next');
+        monthDiff--;
+      } else {
+        // 需要往前翻月（上個月）
+        this.logger.info(`點擊上一月按鈕 (剩餘 ${Math.abs(monthDiff)} 個月)`);
+        await frame.click('.k-nav-prev');
+        monthDiff++;
       }
-    } else if (clicks < 0) {
-      // 向後點擊
-      for (let i = 0; i < Math.abs(clicks); i++) {
-        await frame.click('.k-calendar-header .k-link.k-nav-prev');
-        await frame.waitForTimeout(200);
+      
+      // 等待月份切換完成
+      await frame.waitForTimeout(CONFIG.DELAYS.CLICK_DELAY);
+      
+      // 驗證月份是否已經切換
+      const newYearMonth = await getCurrentMonth();
+      if (newYearMonth) {
+        currentYearMonth = newYearMonth;
+        this.logger.info(`切換後顯示: ${currentYearMonth.year}年${currentYearMonth.month}月`);
       }
+    }
+    
+    if (attempts >= maxAttempts) {
+      this.logger.warn('月份導航達到最大嘗試次數，可能導航失敗');
+    } else {
+      this.logger.success(`成功導航到 ${targetYear}年${targetMonth}月`);
     }
   }
 
   private async selectTargetDay(frame: Frame, targetDay: number): Promise<void> {
-    const daySelector = `.k-calendar-content td[data-value="${targetDay}"]`;
+    this.logger.info(`選擇目標日期: ${targetDay}日`);
     
+    // 等待日曆穩定
+    await frame.waitForTimeout(CONFIG.DELAYS.CLICK_DELAY);
+    
+    // 在日曆中點擊目標日期，確保點擊的是當前月份的日期（不是其他月份的日期）
+    const daySelector = `td[role="gridcell"]:not(.k-other-month)`;
+    
+    const clickResult = await frame.evaluate((selector, day) => {
+      const dayCells = Array.from(document.querySelectorAll(selector));
+      
+      // 過濾出當前月份的日期格子（排除 .k-other-month 類別）
+      const currentMonthCells = dayCells.filter(cell => 
+        !cell.classList.contains('k-other-month')
+      );
+      
+      const targetCell = currentMonthCells.find(cell => {
+        const dayText = cell.textContent?.trim();
+        return dayText === day.toString();
+      });
+      
+      if (targetCell) {
+        (targetCell as HTMLElement).click();
+        return true;
+      }
+      return false;
+    }, daySelector, targetDay);
+
+    if (!clickResult) {
+      throw new Error(`無法找到目標日期 ${targetDay} 在當前月份中`);
+    }
+    
+    this.logger.info(`成功點擊日期: ${targetDay}日`);
+    
+    // 等待日期選擇器關閉
+    await frame.waitForTimeout(CONFIG.DELAYS.CLICK_DELAY);
+    
+    // 驗證日期是否已正確設定
     try {
-      await frame.waitForSelector(daySelector, { timeout: CONFIG.TIMEOUTS.ELEMENT_WAIT });
-      await frame.click(daySelector);
+      await frame.waitForSelector('.k-calendar', { timeout: 1000, hidden: true });
+      this.logger.info('日期選擇器已關閉');
     } catch (error) {
-      // 如果找不到指定日期，嘗試其他格式
-      const alternativeSelector = `.k-calendar-content td:not(.k-other-month) a[data-value="${targetDay}"]`;
-      await frame.waitForSelector(alternativeSelector, { timeout: CONFIG.TIMEOUTS.ELEMENT_WAIT });
-      await frame.click(alternativeSelector);
+      this.logger.info('日期選擇器可能仍開啟，嘗試點擊其他區域關閉');
+      // 點擊日曆外的區域來關閉日期選擇器
+      await frame.click('body');
+      await frame.waitForTimeout(CONFIG.DELAYS.CLICK_DELAY);
     }
   }
 
