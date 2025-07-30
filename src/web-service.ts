@@ -343,24 +343,32 @@ class CloudAutoAttendanceSystem {
     // 檢查當前 URL
     const currentUrl = this.page.url();
     this.logger.info(`導航前 URL: ${currentUrl}`);
+    this.updateStatus({ progress: `導航前 URL: ${currentUrl}` });
     
     // 如果已經在表單申請頁面，直接返回
     if (currentUrl.includes('flow.mayohr.com/GAIA/bpm/applyform')) {        
       this.logger.success('已在表單申請頁面');
+      this.updateStatus({ progress: '已在表單申請頁面' });
       return;
     }
     
     try {
       // 嘗試尋找表單申請按鈕
       this.logger.info('正在尋找表單申請按鈕...');
+      this.updateStatus({ progress: '正在尋找表單申請按鈕...' });
       await this.page.waitForSelector(SELECTORS.MAIN_PAGE.FORM_APPLICATION_LINK, { timeout: CONFIG.TIMEOUTS.ELEMENT_WAIT });
       await this.page.click(SELECTORS.MAIN_PAGE.FORM_APPLICATION_LINK);
+      
+      this.logger.info('已點擊表單申請按鈕，等待頁面跳轉...');
+      this.updateStatus({ progress: '已點擊表單申請按鈕，等待頁面跳轉...' });
       
       let attempts = 0;
       const maxAttempts = 30;
       
       while (attempts < maxAttempts) {
         const currentUrl = this.page.url();
+        this.logger.info(`等待跳轉中... 當前 URL: ${currentUrl}`);
+        
         if (currentUrl.includes('flow.mayohr.com/GAIA/bpm/applyform')) {
           this.logger.success('成功導航到表單申請頁面');
           this.updateStatus({ progress: '已成功導航到表單申請頁面' });
@@ -385,6 +393,7 @@ class CloudAutoAttendanceSystem {
       
       const finalUrl = this.page.url();
       this.logger.info(`直接導航後 URL: ${finalUrl}`);
+      this.updateStatus({ progress: `直接導航後 URL: ${finalUrl}` });
       
       if (finalUrl.includes('flow.mayohr.com/GAIA/bpm/applyform')) {
         this.logger.success('通過直接導航成功到達表單申請頁面');
@@ -392,6 +401,7 @@ class CloudAutoAttendanceSystem {
         return;
       } else {
         this.logger.error(`導航失敗，當前 URL: ${finalUrl}`);
+        this.updateStatus({ progress: `導航失敗，當前 URL: ${finalUrl}` });
         throw new Error(`導航失敗，當前 URL: ${finalUrl}`);
       }
     }
@@ -564,24 +574,52 @@ class CloudAutoAttendanceSystem {
   private async clickForgetPunchLink(): Promise<void> {
     if (!this.page) throw new Error('頁面未初始化');
     
+    // 檢查當前頁面 URL
+    const currentUrl = this.page.url();
+    this.logger.info(`準備點擊忘打卡申請單連結，當前頁面: ${currentUrl}`);
+    this.updateStatus({ progress: `準備點擊忘打卡申請單連結，當前頁面: ${currentUrl}` });
+    
+    // 確認我們在正確的頁面
+    if (!currentUrl.includes('flow.mayohr.com/GAIA/bpm/applyform')) {
+      throw new Error(`錯誤的頁面，期望在表單申請頁面，但當前在: ${currentUrl}`);
+    }
+    
     try {
+      this.logger.info('等待忘打卡申請單連結出現...');
+      this.updateStatus({ progress: '等待忘打卡申請單連結出現...' });
+      
       const link = await this.page.waitForSelector(SELECTORS.FORM_APPLICATION.FORGET_PUNCH_LINK, { 
         timeout: CONFIG.TIMEOUTS.ELEMENT_WAIT 
       });
       if (link) {
+        this.logger.info('找到忘打卡申請單連結，準備點擊...');
+        this.updateStatus({ progress: '找到忘打卡申請單連結，準備點擊...' });
         await link.click();
+        this.logger.success('成功點擊忘打卡申請單連結');
+        this.updateStatus({ progress: '成功點擊忘打卡申請單連結' });
       } else {
         throw new Error('找不到忘打卡申請單連結');
       }
     } catch (error) {
       // 嘗試替代選擇器
+      this.logger.warn('主要選擇器失敗，嘗試替代選擇器');
+      this.updateStatus({ progress: '主要選擇器失敗，嘗試替代選擇器' });
+      
       const altLink = await this.page.waitForSelector(SELECTORS.FORM_APPLICATION.FORGET_PUNCH_LINK_ALT, { 
         timeout: CONFIG.TIMEOUTS.ELEMENT_WAIT 
       });
       if (altLink) {
+        this.logger.info('找到替代選擇器連結，準備點擊...');
+        this.updateStatus({ progress: '找到替代選擇器連結，準備點擊...' });
         await altLink.click();
+        this.logger.success('成功點擊忘打卡申請單連結（替代選擇器）');
+        this.updateStatus({ progress: '成功點擊忘打卡申請單連結（替代選擇器）' });
       } else {
-        throw new Error('找不到忘打卡申請單連結（包含替代選擇器）');
+        // 如果還是失敗，檢查頁面結構
+        this.logger.error('所有選擇器都失敗，檢查頁面結構...');
+        this.updateStatus({ progress: '所有選擇器都失敗，檢查頁面結構...' });
+        await this.checkPageStructure();
+        throw new Error(`找不到忘打卡申請單連結。當前頁面: ${currentUrl}`);
       }
     }
     
@@ -591,27 +629,53 @@ class CloudAutoAttendanceSystem {
   private async waitForNewPageAndSwitch(): Promise<Page> {
     if (!this.browser) throw new Error('瀏覽器未初始化');
     
+    this.logger.info('等待新分頁開啟...');
+    this.updateStatus({ progress: '等待新分頁開啟...' });
+    
     const pages = await this.browser.pages();
     const initialPageCount = pages.length;
+    this.logger.info(`當前分頁數量: ${initialPageCount}`);
+    this.updateStatus({ progress: `當前分頁數量: ${initialPageCount}` });
     
     let attempts = 0;
     const maxAttempts = 10;
     
     while (attempts < maxAttempts) {
       const currentPages = await this.browser.pages();
-      if (currentPages.length > initialPageCount) {
-        const newPage = currentPages[currentPages.length - 1];
+      const currentPageCount = currentPages.length;
+      
+      this.logger.info(`檢查分頁變化... 當前分頁數量: ${currentPageCount} (期望 > ${initialPageCount})`);
+      this.updateStatus({ progress: `檢查分頁變化... 當前分頁數量: ${currentPageCount} (期望 > ${initialPageCount})` });
+      
+      if (currentPageCount > initialPageCount) {
+        const newPage = currentPages[currentPageCount - 1];
+        const newPageUrl = newPage.url();
+        
+        this.logger.info(`檢測到新分頁開啟，URL: ${newPageUrl}`);
+        this.updateStatus({ progress: `檢測到新分頁開啟，URL: ${newPageUrl}` });
+        
+        // 等待新分頁載入
+        this.logger.info('等待新分頁載入...');
+        this.updateStatus({ progress: '等待新分頁載入...' });
         await newPage.waitForTimeout(CONFIG.TIMEOUTS.FORM_LOAD);
+        
+        // 檢查新分頁的 URL
+        const finalUrl = newPage.url();
+        this.logger.info(`新分頁載入完成，最終 URL: ${finalUrl}`);
+        this.updateStatus({ progress: `新分頁載入完成，最終 URL: ${finalUrl}` });
         
         // 為新分頁設置原生對話框處理器
         this.setupDialogHandler(newPage);
         
         return newPage;
       }
+      
       await this.page!.waitForTimeout(500);
       attempts++;
     }
     
+    this.logger.error(`等待新分頁開啟超時，嘗試了 ${maxAttempts} 次`);
+    this.updateStatus({ progress: `等待新分頁開啟超時，嘗試了 ${maxAttempts} 次` });
     throw new Error('等待新分頁開啟超時');
   }
 
@@ -635,36 +699,53 @@ class CloudAutoAttendanceSystem {
 
   private async fillAttendanceForm(page: Page, task: AttendanceTask): Promise<void> {
     this.logger.info(`填寫表單: ${task.displayName}`);
+    this.updateStatus({ progress: `填寫表單: ${task.displayName}` });
     
     // 檢查頁面是否仍然可用
     if (page.isClosed()) {
       throw new Error('表單頁面已關閉，無法填寫');
     }
     
+    // 檢查當前頁面 URL
+    const currentUrl = page.url();
+    this.logger.info(`開始填寫表單，當前頁面 URL: ${currentUrl}`);
+    this.updateStatus({ progress: `開始填寫表單，當前頁面 URL: ${currentUrl}` });
+    
     try {
       // 檢查頁面響應性
       await page.evaluate(() => document.readyState);
+      this.logger.info('頁面響應性檢查通過');
     } catch (error) {
+      this.logger.error(`表單頁面無法響應: ${error instanceof Error ? error.message : '未知錯誤'}`);
+      this.updateStatus({ progress: `表單頁面無法響應: ${error instanceof Error ? error.message : '未知錯誤'}` });
       throw new Error(`表單頁面無法響應: ${error instanceof Error ? error.message : '未知錯誤'}`);
     }
     
     // 等待並切換到 main iframe
+    this.logger.info('等待 main iframe 載入...');
+    this.updateStatus({ progress: '等待 main iframe 載入...' });
     const mainFrame = await this.waitForFrame(page, SELECTORS.IFRAMES.MAIN);
+    this.logger.info('main iframe 載入成功');
+    this.updateStatus({ progress: 'main iframe 載入成功' });
     
     // 按照 PRD 要求，只處理這三個欄位：
     // 1. 類型
     this.logger.info('開始填寫類型欄位');
+    this.updateStatus({ progress: '開始填寫類型欄位...' });
     await this.selectAttendanceType(mainFrame, task.type);
     
     // 2. 日期/時間
     this.logger.info('開始填寫日期/時間欄位');
+    this.updateStatus({ progress: '開始填寫日期/時間欄位...' });
     await this.setDateTime(mainFrame, task);
     
     // 3. 地點
     this.logger.info('開始填寫地點欄位');
+    this.updateStatus({ progress: '開始填寫地點欄位...' });
     await this.selectLocation(mainFrame);
     
     this.logger.info('表單填寫完成');
+    this.updateStatus({ progress: '表單填寫完成' });
   }
 
   private async waitForFrame(page: Page, selector: string): Promise<Frame> {
