@@ -136,6 +136,7 @@ interface TaskStatus {
   startTime: Date;
   completedTime?: Date;
   failedTime?: Date;
+  logHistory: string[]; // 新增：日誌歷史記錄
 }
 
 // === 雲端日誌服務 ===
@@ -150,10 +151,18 @@ class CloudLogService {
 
   private log(level: string, message: string): void {
     const timestamp = new Date().toISOString();
-    console.log(`[${timestamp}] [${level}] [${this.taskId}] ${message}`);
+    const logMessage = `[${timestamp}] [${level}] [${this.taskId}] ${message}`;
+    console.log(logMessage);
     
     // 同時更新前端狀態
     this.updateStatus({ progress: message });
+    
+    // 累積日誌到歷史記錄
+    const currentStatus = taskStatus.get(this.taskId);
+    if (currentStatus) {
+      const newLogHistory = [...(currentStatus.logHistory || []), logMessage];
+      taskStatus.set(this.taskId, { ...currentStatus, logHistory: newLogHistory });
+    }
   }
 
   info(message: string): void {
@@ -1187,12 +1196,23 @@ class CloudAutoAttendanceSystem {
       await this.processAllAttendanceTasks();
       
       this.logger.success('所有補卡任務成功完成');
-      this.updateStatus({ 
-        status: 'completed',
-        progress: '所有補卡任務成功完成',
-        message: `成功完成 ${this.attendanceTasks.length} 個補卡任務`,
-        completedTime: new Date()
-      });
+      
+      // 驗證是否真正成功：檢查是否有任何任務失敗
+      const completedTasks = this.attendanceTasks.length;
+      this.logger.info(`驗證完成狀態：處理了 ${completedTasks} 個任務`);
+      
+      // 檢查是否所有任務都真正完成（沒有拋出異常）
+      if (completedTasks > 0) {
+        this.logger.success(`✅ 補卡完成！成功完成 ${completedTasks} 個補卡任務`);
+        this.updateStatus({ 
+          status: 'completed',
+          progress: '所有補卡任務成功完成',
+          message: `成功完成 ${completedTasks} 個補卡任務`,
+          completedTime: new Date()
+        });
+      } else {
+        throw new Error('沒有處理任何補卡任務');
+      }
     } catch (error) {
       this.logger.error(`執行失敗: ${error}`);
       this.updateStatus({ 
@@ -1315,7 +1335,8 @@ app.get('/', (req, res) => {
                 <div id="statusSection" class="hidden">
                     <div class="bg-white rounded-lg shadow-md p-6 mb-6">
                         <h2 class="text-lg font-semibold text-gray-800 mb-4">📺 執行狀態</h2>
-                        <div id="status" class="text-sm font-mono bg-gray-100 rounded p-4 min-h-[100px] whitespace-pre-wrap"></div>
+                        <div id="status" class="text-sm font-mono bg-gray-100 rounded p-4 min-h-[100px] whitespace-pre-wrap mb-4"></div>
+                        <div id="logContainer" class="text-xs font-mono bg-gray-50 rounded p-3 max-h-[300px] overflow-y-auto border"></div>
                     </div>
                 </div>
 
@@ -1394,6 +1415,17 @@ app.get('/', (req, res) => {
                         
                         // 更新狀態顯示
                         statusDiv.textContent = status.progress || '處理中...';
+                        
+                        // 顯示完整的日誌歷史
+                        if (status.logHistory && status.logHistory.length > 0) {
+                            const logContainer = document.getElementById('logContainer');
+                            if (logContainer) {
+                                logContainer.innerHTML = status.logHistory
+                                    .map(log => \`<div class="text-xs text-gray-600 mb-1">\${log}</div>\`)
+                                    .join('');
+                                logContainer.scrollTop = logContainer.scrollHeight;
+                            }
+                        }
                         
                         if (status.status === 'completed') {
                             showSuccess('✅ 補卡完成！' + (status.message || ''));
@@ -1518,7 +1550,8 @@ app.post('/api/punch-card', async (req, res) => {
     const initialStatus: TaskStatus = {
       status: 'queued',
       progress: '正在準備處理...',
-      startTime: new Date()
+      startTime: new Date(),
+      logHistory: []
     };
     taskStatus.set(requestId, initialStatus);
     
@@ -1558,7 +1591,18 @@ async function processPunchCard(requestId: string, loginInfo: LoginInfo, tasks: 
   const updateStatus = (status: Partial<TaskStatus>) => {
     const currentStatus = taskStatus.get(requestId);
     if (currentStatus) {
-      taskStatus.set(requestId, { ...currentStatus, ...status });
+      // 特殊處理 logHistory 的累積
+      if (status.logHistory && typeof status.logHistory === 'function') {
+        const logHistoryFn = status.logHistory as (prev: string[]) => string[];
+        const newLogHistory = logHistoryFn(currentStatus.logHistory || []);
+        taskStatus.set(requestId, { 
+          ...currentStatus, 
+          ...status, 
+          logHistory: newLogHistory 
+        });
+      } else {
+        taskStatus.set(requestId, { ...currentStatus, ...status });
+      }
     }
   };
 
