@@ -309,6 +309,7 @@ class CloudAutoAttendanceSystem {
     this.updateStatus({ progress: `開始處理 ${this.attendanceTasks.length} 個補卡任務` });
 
     const failedTasks: string[] = [];
+    const errorDetails: string[] = [];
 
     for (let i = 0; i < this.attendanceTasks.length; i++) {
       const task = this.attendanceTasks[i];
@@ -319,13 +320,16 @@ class CloudAutoAttendanceSystem {
         await this.processSingleAttendanceTask(task);
         this.logger.success(`任務完成: ${task.displayName}`);
       } catch (error) {
-        this.logger.error(`任務失敗: ${task.displayName} - ${error}`);
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        this.logger.error(`任務失敗: ${task.displayName} - ${errorMsg}`);
         failedTasks.push(task.displayName);
+        errorDetails.push(`${task.displayName}: ${errorMsg}`);
       }
     }
 
     if (failedTasks.length > 0) {
-      throw new Error(`部分任務失敗: ${failedTasks.join(', ')}`);
+      const errorMessage = `部分任務失敗: ${failedTasks.join(', ')}\n\n詳細錯誤:\n${errorDetails.join('\n')}`;
+      throw new Error(errorMessage);
     }
 
     this.logger.success('所有補卡任務完成');
@@ -839,10 +843,8 @@ app.get('/', (req, res) => {
                 resultSection.classList.remove('hidden');
                 resultSection.classList.add('fade-in');
                 
-                // 顯示重試按鈕
-                if (failedRecords.length > 0) {
-                    retrySection.classList.remove('hidden');
-                }
+                // 顯示重試按鈕 - 修復：只要有錯誤就顯示重試按鈕
+                retrySection.classList.remove('hidden');
                 
                 // 重置表單
                 resetForm();
