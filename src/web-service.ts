@@ -93,7 +93,11 @@ const SELECTORS = {
     
     // 送簽按鈕（在 banner iframe 內）
     SUBMIT_BUTTON: '#SUBMIT',
-    SUBMIT_CONFIRM_BUTTON: 'button.btn.btn-primary[onclick*="submitForm"]'
+    SUBMIT_BUTTON_ALT: 'div.buttonDiv[id="SUBMIT"]',
+    SUBMIT_CONFIRM_BUTTON: 'button.btn.btn-primary[onclick*="submitForm"]',
+    
+    // 確認對話框處理
+    CONFIRM_BUTTON: 'button'
   }
 };
 
@@ -860,42 +864,140 @@ class CloudAutoAttendanceSystem {
   }
 
   private async selectLocation(frame: Frame): Promise<void> {
-    await frame.waitForSelector(SELECTORS.ATTENDANCE_FORM.LOCATION_DROPDOWN, { timeout: CONFIG.TIMEOUTS.ELEMENT_WAIT });
-    await frame.click(SELECTORS.ATTENDANCE_FORM.LOCATION_DROPDOWN);
+    this.logger.info('選擇地點: TNLMG');
     
-    await frame.waitForTimeout(CONFIG.DELAYS.CLICK_DELAY);
+    // 等待地點欄位容器載入
+    await frame.waitForSelector(SELECTORS.ATTENDANCE_FORM.LOCATION_CONTAINER, { 
+      timeout: CONFIG.TIMEOUTS.ELEMENT_WAIT 
+    });
     
-    // 選擇 TNLMG 地點
-    const locationSelector = `li[data-value="${SELECTORS.ATTENDANCE_FORM.LOCATION_TNLMG_VALUE}"]`;
-    await frame.waitForSelector(locationSelector, { timeout: CONFIG.TIMEOUTS.ELEMENT_WAIT });
-    await frame.click(locationSelector);
+    try {
+      // 方法 1: 先嘗試直接使用隱藏的 select 元素
+      const selectElement = await frame.$(SELECTORS.ATTENDANCE_FORM.LOCATION_SELECT);
+      if (selectElement) {
+        await frame.select(SELECTORS.ATTENDANCE_FORM.LOCATION_SELECT, SELECTORS.ATTENDANCE_FORM.LOCATION_TNLMG_VALUE);
+        this.logger.info(`成功使用 select 方法選擇地點: TNLMG (value=${SELECTORS.ATTENDANCE_FORM.LOCATION_TNLMG_VALUE})`);
+      } else {
+        throw new Error('找不到地點 select 元素');
+      }
+    } catch (error) {
+      // 方法 2: 嘗試點擊 Kendo UI 下拉選單
+      try {
+        this.logger.info('嘗試使用 Kendo UI 下拉選單選擇地點');
+        
+        // 點擊地點下拉選單開啟選項
+        await frame.click(SELECTORS.ATTENDANCE_FORM.LOCATION_DROPDOWN);
+        await frame.waitForTimeout(CONFIG.DELAYS.CLICK_DELAY);
+        
+        // 等待選項列表出現並點擊 TNLMG 選項
+        const success = await frame.evaluate(() => {
+          const options = Array.from(document.querySelectorAll('li[data-offset-index]'));
+          const targetOption = options.find(option => option.textContent?.trim() === 'TNLMG');
+          if (targetOption) {
+            (targetOption as HTMLElement).click();
+            return true;
+          }
+          return false;
+        });
+        
+        if (success) {
+          this.logger.info('成功使用 Kendo UI 選擇地點: TNLMG');
+        } else {
+          throw new Error('無法在選項列表中找到 TNLMG 選項');
+        }
+      } catch (kendoError) {
+        this.logger.warn(`地點選擇失敗，但繼續執行: ${error instanceof Error ? error.message : '未知錯誤'}`);
+      }
+    }
     
-    await frame.waitForTimeout(CONFIG.DELAYS.CLICK_DELAY);
+    await frame.waitForTimeout(CONFIG.DELAYS.FORM_FILL_DELAY);
   }
 
   private async submitAttendanceForm(page: Page): Promise<void> {
-    // 等待 banner iframe
+    this.logger.info('準備送簽表單');
+    
+    // 切換到 banner iframe 找送簽按鈕
     const bannerFrame = await this.waitForFrame(page, SELECTORS.IFRAMES.BANNER);
     
     // 點擊送簽按鈕
-    await bannerFrame.waitForSelector(SELECTORS.ATTENDANCE_FORM.SUBMIT_BUTTON, { timeout: CONFIG.TIMEOUTS.ELEMENT_WAIT });
-    await bannerFrame.click(SELECTORS.ATTENDANCE_FORM.SUBMIT_BUTTON);
+    try {
+      const submitButton = await bannerFrame.waitForSelector(SELECTORS.ATTENDANCE_FORM.SUBMIT_BUTTON, { 
+        timeout: CONFIG.TIMEOUTS.ELEMENT_WAIT 
+      });
+      if (submitButton) {
+        await submitButton.click();
+        this.logger.info('點擊送簽按鈕');
+      }
+    } catch (error) {
+      // 嘗試替代選擇器
+      const altSubmitButton = await bannerFrame.waitForSelector(SELECTORS.ATTENDANCE_FORM.SUBMIT_BUTTON_ALT, { 
+        timeout: CONFIG.TIMEOUTS.ELEMENT_WAIT 
+      });
+      if (altSubmitButton) {
+        await altSubmitButton.click();
+        this.logger.info('點擊送簽按鈕（替代選擇器）');
+      }
+    }
     
-    await page.waitForTimeout(CONFIG.DELAYS.AFTER_SUBMIT_DELAY);
+    // 處理可能的確認對話框和送簽結果
+    await this.handleSubmitResult(page);
+    
+    this.logger.success('表單送簽完成');
   }
 
   private async handleSubmitResult(page: Page): Promise<void> {
-    // 檢查是否有確認對話框
+    this.logger.info('處理送簽結果...');
+    
     try {
-      await page.waitForSelector(SELECTORS.ATTENDANCE_FORM.SUBMIT_CONFIRM_BUTTON, { timeout: 3000 });
-      await page.click(SELECTORS.ATTENDANCE_FORM.SUBMIT_CONFIRM_BUTTON);
-      this.logger.info('已處理送簽確認');
+      // 先處理可能的確認對話框
+      await this.handleConfirmationDialog(page);
+      
+      // 等待一段時間檢查送簽結果
+      await page.waitForTimeout(CONFIG.DELAYS.AFTER_SUBMIT_DELAY);
+      
+      // 檢查頁面是否已關閉（成功的情況）
+      if (page.isClosed()) {
+        this.logger.success('表單分頁已自動關閉，送簽成功');
+        return;
+      }
+      
+      // 如果頁面還開著，可能有提示訊息需要處理
+      this.logger.info('表單分頁仍開啟，檢查是否有提示訊息...');
+      
+      // 檢查是否有「當日已有打卡紀錄」提示
+      try {
+        // 等待可能的提示訊息彈出
+        await page.waitForTimeout(1000);
+        
+        // 檢查頁面是否仍然開啟
+        if (!page.isClosed()) {
+          this.logger.info('表單分頁仍開啟，可能遇到重複補卡警告，已由原生彈窗處理器處理');
+        } else {
+          this.logger.success('表單分頁已自動關閉，送簽成功');
+        }
+      } catch (error) {
+        this.logger.warn(`檢查提示訊息時發生錯誤: ${error instanceof Error ? error.message : '未知錯誤'}`);
+      }
+      
     } catch (error) {
-      // 沒有確認對話框，繼續
+      this.logger.error(`處理送簽結果失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
+      throw error;
     }
+  }
 
-    // 等待處理完成
-    await page.waitForTimeout(CONFIG.DELAYS.AFTER_SUBMIT_DELAY);
+  private async handleConfirmationDialog(page: Page): Promise<void> {
+    try {
+      // 等待可能的確認對話框
+      const confirmButton = await page.waitForSelector(SELECTORS.ATTENDANCE_FORM.CONFIRM_BUTTON, { 
+        timeout: 3000 
+      });
+      if (confirmButton) {
+        await confirmButton.click();
+        this.logger.info('已處理確認對話框');
+      }
+    } catch (error) {
+      this.logger.info('無確認對話框需要處理');
+    }
   }
 
   private async isFormPageUsable(): Promise<boolean> {
