@@ -301,7 +301,50 @@ class CloudAutoAttendanceSystem {
     // 等待頁面載入
     await this.page.waitForTimeout(CONFIG.DELAYS.NAVIGATION_DELAY);
 
+    // 檢查頁面結構
+    await this.checkPageStructure();
+
     this.logger.success('已到達表單申請頁面');
+  }
+
+  private async checkPageStructure(): Promise<void> {
+    if (!this.page) return;
+
+    try {
+      // 檢查頁面標題
+      const title = await this.page.title();
+      this.logger.info(`頁面標題: ${title}`);
+
+      // 檢查是否有忘記打卡相關的連結
+      const links = await this.page.$$eval('a', (elements) => {
+        return elements.map(el => ({
+          text: el.textContent?.trim(),
+          href: el.getAttribute('href'),
+          'data-formkind': el.getAttribute('data-formkind'),
+          className: el.className,
+          title: el.getAttribute('title'),
+          'data-toggle': el.getAttribute('data-toggle')
+        })).filter(link => 
+          link.text?.includes('打卡') || 
+          link.text?.includes('補卡') || 
+          link.text?.includes('忘記') ||
+          link.text?.includes('忘打卡申請單') ||
+          link.href?.includes('TNLMG9.FORM.1001') ||
+          link['data-formkind'] === 'TNLMG9.FORM.1001'
+        );
+      });
+
+      this.logger.info(`找到 ${links.length} 個相關連結:`);
+      links.forEach((link, index) => {
+        this.logger.info(`  連結 ${index + 1}: ${JSON.stringify(link)}`);
+      });
+
+      if (links.length === 0) {
+        this.logger.warn('未找到任何忘記打卡相關的連結');
+      }
+    } catch (error) {
+      this.logger.error(`檢查頁面結構時出錯: ${error}`);
+    }
   }
 
   private async processAllAttendanceTasks(): Promise<void> {
@@ -367,13 +410,47 @@ class CloudAutoAttendanceSystem {
   private async clickForgetPunchLink(): Promise<void> {
     if (!this.page) throw new Error('頁面未初始化');
 
-    try {
-      await this.page.waitForSelector(SELECTORS.FORM_APPLICATION.FORGET_PUNCH_LINK, { timeout: CONFIG.TIMEOUTS.ELEMENT_WAIT });
-      await this.page.click(SELECTORS.FORM_APPLICATION.FORGET_PUNCH_LINK);
-    } catch (error) {
-      // 嘗試替代選擇器
-      await this.page.waitForSelector(SELECTORS.FORM_APPLICATION.FORGET_PUNCH_LINK_ALT, { timeout: CONFIG.TIMEOUTS.ELEMENT_WAIT });
-      await this.page.click(SELECTORS.FORM_APPLICATION.FORGET_PUNCH_LINK_ALT);
+    // 等待頁面完全載入
+    await this.page.waitForTimeout(3000);
+
+    // 嘗試多個可能的選擇器
+    const possibleSelectors = [
+      // 精確匹配你提供的 HTML 結構
+      'a[data-formkind="TNLMG9.FORM.1001"]',
+      'a[href="javascript:void(0);"][data-formkind="TNLMG9.FORM.1001"]',
+      // 備用選擇器
+      SELECTORS.FORM_APPLICATION.FORGET_PUNCH_LINK,
+      SELECTORS.FORM_APPLICATION.FORGET_PUNCH_LINK_ALT,
+      'a[href*="TNLMG9.FORM.1001"]',
+      // 文字內容選擇器
+      'a:contains("忘打卡申請單")',
+      'a:contains("忘記打卡")',
+      'a:contains("補卡")',
+      'a:contains("打卡")',
+      '.link-item__link[href*="applyform"]',
+      'a[href*="applyform"]'
+    ];
+
+    let clicked = false;
+    for (const selector of possibleSelectors) {
+      try {
+        this.logger.info(`嘗試選擇器: ${selector}`);
+        await this.page.waitForSelector(selector, { timeout: 5000 });
+        await this.page.click(selector);
+        this.logger.success(`成功點擊選擇器: ${selector}`);
+        clicked = true;
+        break;
+      } catch (error) {
+        this.logger.warn(`選擇器失敗: ${selector} - ${error}`);
+        continue;
+      }
+    }
+
+    if (!clicked) {
+      // 如果所有選擇器都失敗，嘗試截圖並拋出詳細錯誤
+      const screenshot = await this.page.screenshot({ fullPage: true });
+      this.logger.error('無法找到忘記打卡連結，已截圖保存');
+      throw new Error('無法找到忘記打卡連結，請檢查頁面結構是否變更');
     }
 
     await this.page.waitForTimeout(CONFIG.DELAYS.CLICK_DELAY);
