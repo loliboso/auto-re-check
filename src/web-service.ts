@@ -290,50 +290,67 @@ class CloudAutoAttendanceSystem {
 
   private async navigateToFormApplication(): Promise<void> {
     if (!this.page) throw new Error('頁面未初始化');
-
-    this.logger.info('正在導航到主頁面...');
-    this.updateStatus({ progress: '正在導航到主頁面...' });
-
-    // 步驟 1: 導航到主頁面
-    await this.page.goto(CONFIG.URLS.MAIN_PAGE_URL, { 
-      waitUntil: 'networkidle2',
-      timeout: CONFIG.TIMEOUTS.NAVIGATION_WAIT 
-    });
-
-    // 等待頁面載入
-    await this.page.waitForTimeout(CONFIG.DELAYS.NAVIGATION_DELAY);
-
-    // 檢查當前頁面
+    
+    this.logger.info('正在導航到表單申請頁面');
+    this.updateStatus({ progress: '正在導航到表單申請頁面...' });
+    
+    // 等待頁面穩定
+    await this.page.waitForTimeout(2000);
+    
+    // 檢查當前 URL
     const currentUrl = this.page.url();
-    this.logger.info(`當前頁面 URL: ${currentUrl}`);
-
-    // 步驟 2: 點擊「表單申請」連結
-    this.logger.info('正在尋找並點擊「表單申請」連結...');
-    this.updateStatus({ progress: '正在尋找並點擊「表單申請」連結...' });
-
+    this.logger.info(`導航前 URL: ${currentUrl}`);
+    
+    // 如果已經在表單申請頁面，直接返回
+    if (currentUrl.includes('flow.mayohr.com/GAIA/bpm/applyform')) {        
+      this.logger.success('已在表單申請頁面');
+      return;
+    }
+    
     try {
-      // 等待表單申請連結出現
-      await this.page.waitForSelector(SELECTORS.MAIN_PAGE.FORM_APPLICATION_LINK, { 
-        timeout: CONFIG.TIMEOUTS.ELEMENT_WAIT 
-      });
-      
-      // 點擊表單申請連結
+      // 嘗試尋找表單申請按鈕
+      this.logger.info('正在尋找表單申請按鈕...');
+      await this.page.waitForSelector(SELECTORS.MAIN_PAGE.FORM_APPLICATION_LINK, { timeout: CONFIG.TIMEOUTS.ELEMENT_WAIT });
       await this.page.click(SELECTORS.MAIN_PAGE.FORM_APPLICATION_LINK);
       
-      // 等待新頁面載入
-      await this.page.waitForTimeout(CONFIG.DELAYS.NAVIGATION_DELAY);
+      let attempts = 0;
+      const maxAttempts = 30;
       
-      // 檢查新頁面 URL
-      const newUrl = this.page.url();
-      this.logger.info(`表單申請頁面 URL: ${newUrl}`);
+      while (attempts < maxAttempts) {
+        const currentUrl = this.page.url();
+        if (currentUrl.includes('flow.mayohr.com/GAIA/bpm/applyform')) {
+          this.logger.success('成功導航到表單申請頁面');
+          this.updateStatus({ progress: '已成功導航到表單申請頁面' });
+          return;
+        }
+        await this.page.waitForTimeout(500);
+        attempts++;
+      }
       
-      // 檢查頁面結構
-      await this.checkPageStructure();
-      
-      this.logger.success('已成功導航到表單申請頁面');
+      throw new Error('導航到表單申請頁面超時');
     } catch (error) {
-      this.logger.error(`點擊表單申請連結失敗: ${error}`);
-      throw new Error(`無法找到或點擊「表單申請」連結。當前頁面: ${currentUrl}`);
+      // 如果找不到按鈕，嘗試直接導航
+      this.logger.warn('找不到表單申請按鈕，嘗試直接導航到表單頁面');
+      this.updateStatus({ progress: '嘗試直接導航到表單頁面...' });
+      
+      // 使用動態 URL（因為 muid 會變化）
+      const dynamicUrl = 'https://flow.mayohr.com/GAIA/bpm/applyform?moduleType=apply&companyCode=TNLMG';
+      await this.page.goto(dynamicUrl, { 
+        waitUntil: 'domcontentloaded', 
+        timeout: CONFIG.TIMEOUTS.PAGE_LOAD 
+      });
+      
+      const finalUrl = this.page.url();
+      this.logger.info(`直接導航後 URL: ${finalUrl}`);
+      
+      if (finalUrl.includes('flow.mayohr.com/GAIA/bpm/applyform')) {
+        this.logger.success('通過直接導航成功到達表單申請頁面');
+        this.updateStatus({ progress: '通過直接導航成功到達表單申請頁面' });
+        return;
+      } else {
+        this.logger.error(`導航失敗，當前 URL: ${finalUrl}`);
+        throw new Error(`導航失敗，當前 URL: ${finalUrl}`);
+      }
     }
   }
 
@@ -439,55 +456,33 @@ class CloudAutoAttendanceSystem {
 
   private async clickForgetPunchLink(): Promise<void> {
     if (!this.page) throw new Error('頁面未初始化');
-
-    // 等待頁面完全載入
-    await this.page.waitForTimeout(3000);
-
-    // 檢查當前頁面 URL
-    const currentUrl = this.page.url();
-    this.logger.info(`當前頁面 URL: ${currentUrl}`);
-
-    // 嘗試多個可能的選擇器
-    const possibleSelectors = [
-      // 精確匹配你提供的 HTML 結構
-      'a[data-formkind="TNLMG9.FORM.1001"]',
-      'a[href="javascript:void(0);"][data-formkind="TNLMG9.FORM.1001"]',
-      // 備用選擇器
-      SELECTORS.FORM_APPLICATION.FORGET_PUNCH_LINK,
-      SELECTORS.FORM_APPLICATION.FORGET_PUNCH_LINK_ALT,
-      'a[href*="TNLMG9.FORM.1001"]',
-      // 文字內容選擇器
-      'a:contains("忘打卡申請單")',
-      'a:contains("忘記打卡")',
-      'a:contains("補卡")',
-      'a:contains("打卡")',
-      '.link-item__link[href*="applyform"]',
-      'a[href*="applyform"]'
-    ];
-
-    let clicked = false;
-    for (const selector of possibleSelectors) {
-      try {
-        this.logger.info(`嘗試選擇器: ${selector}`);
-        await this.page.waitForSelector(selector, { timeout: 5000 });
-        await this.page.click(selector);
-        this.logger.success(`成功點擊選擇器: ${selector}`);
-        clicked = true;
-        break;
-      } catch (error) {
-        this.logger.warn(`選擇器失敗: ${selector} - ${error}`);
-        continue;
+    
+    try {
+      const link = await this.page.waitForSelector(SELECTORS.FORM_APPLICATION.FORGET_PUNCH_LINK, { 
+        timeout: CONFIG.TIMEOUTS.ELEMENT_WAIT 
+      });
+      if (link) {
+        await link.click();
+        this.logger.success('成功點擊忘打卡申請單連結');
+      } else {
+        throw new Error('找不到忘打卡申請單連結');
+      }
+    } catch (error) {
+      // 嘗試替代選擇器
+      this.logger.warn('主要選擇器失敗，嘗試替代選擇器');
+      const altLink = await this.page.waitForSelector(SELECTORS.FORM_APPLICATION.FORGET_PUNCH_LINK_ALT, { 
+        timeout: CONFIG.TIMEOUTS.ELEMENT_WAIT 
+      });
+      if (altLink) {
+        await altLink.click();
+        this.logger.success('成功點擊忘打卡申請單連結（替代選擇器）');
+      } else {
+        // 如果還是失敗，檢查頁面結構
+        await this.checkPageStructure();
+        throw new Error('找不到忘打卡申請單連結（包含替代選擇器）');
       }
     }
-
-    if (!clicked) {
-      // 如果所有選擇器都失敗，檢查頁面結構並拋出詳細錯誤
-      await this.checkPageStructure();
-      const screenshot = await this.page.screenshot({ fullPage: true });
-      this.logger.error('無法找到忘記打卡連結，已截圖保存');
-      throw new Error(`無法找到忘記打卡連結。當前頁面: ${currentUrl}，請檢查是否在正確的表單申請頁面`);
-    }
-
+    
     await this.page.waitForTimeout(CONFIG.DELAYS.CLICK_DELAY);
   }
 
