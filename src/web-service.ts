@@ -398,9 +398,6 @@ class CloudAutoAttendanceSystem {
     this.logger.info(`開始處理 ${this.attendanceTasks.length} 個補卡任務`);
     this.updateStatus({ progress: `開始處理 ${this.attendanceTasks.length} 個補卡任務` });
 
-    const failedTasks: string[] = [];
-    const errorDetails: string[] = [];
-
     for (let i = 0; i < this.attendanceTasks.length; i++) {
       const task = this.attendanceTasks[i];
       this.logger.info(`處理任務 ${i + 1}/${this.attendanceTasks.length}: ${task.displayName}`);
@@ -412,14 +409,9 @@ class CloudAutoAttendanceSystem {
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
         this.logger.error(`任務失敗: ${task.displayName} - ${errorMsg}`);
-        failedTasks.push(task.displayName);
-        errorDetails.push(`${task.displayName}: ${errorMsg}`);
+        // 依照本機版邏輯，任一任務失敗立即終止
+        throw new Error(`任務失敗: ${task.displayName} - ${errorMsg}`);
       }
-    }
-
-    if (failedTasks.length > 0) {
-      const errorMessage = `部分任務失敗: ${failedTasks.join(', ')}\n\n詳細錯誤:\n${errorDetails.join('\n')}`;
-      throw new Error(errorMessage);
     }
 
     this.logger.success('所有補卡任務完成');
