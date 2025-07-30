@@ -217,16 +217,17 @@ class DateParserService {
   }
 }
 
-// === 雲端自動補卡系統 ===
+// === 雲端自動補卡系統（完全複製本機版邏輯） ===
 class CloudAutoAttendanceSystem {
   private browser: Browser | null = null;
   private page: Page | null = null;
   private logger: CloudLogService;
   private loginInfo: LoginInfo;
   private attendanceTasks: AttendanceTask[];
+  private updateStatus: (status: Partial<TaskStatus>) => void;
+  private currentTaskIndex: number = 0;
   private currentFormPage: Page | null = null;
   private hasDialogHandler: boolean = false;
-  private updateStatus: (status: Partial<TaskStatus>) => void;
 
   constructor(
     taskId: string,
@@ -241,56 +242,89 @@ class CloudAutoAttendanceSystem {
   }
 
   private async initializeBrowser(): Promise<void> {
-    this.logger.info('正在啟動瀏覽器...');
+    this.logger.info(`正在啟動瀏覽器... (無頭模式)`);
     this.updateStatus({ progress: '正在啟動瀏覽器...' });
 
-    this.browser = await puppeteer.launch({
-      headless: CONFIG.BROWSER.HEADLESS,
-      args: CONFIG.BROWSER.ARGS
-    });
+    try {
+      // 根據模式調整啟動參數
+      const launchOptions: any = {
+        headless: CONFIG.BROWSER.HEADLESS,
+        timeout: 30000,
+        args: CONFIG.BROWSER.HEADLESS ? CONFIG.BROWSER.ARGS : [
+          '--no-sandbox',
+          '--disable-setuid-sandbox', 
+          '--disable-dev-shm-usage',
+          '--window-size=1600,960',
+          '--window-position=0,0'
+        ]
+      };
+      
+      // 只在有界面模式下設置 viewport 為 null
+      if (!CONFIG.BROWSER.HEADLESS) {
+        launchOptions.defaultViewport = null;
+      } else {
+        launchOptions.defaultViewport = { width: 1366, height: 768 };
+      }
+      
+      this.browser = await puppeteer.launch(launchOptions);
 
-    this.page = await this.browser.newPage();
-    await this.page.setViewport({ width: 1280, height: 720 });
-    
-    this.logger.success('瀏覽器啟動成功');
+      this.page = await this.browser.newPage();
+      
+      this.page.setDefaultNavigationTimeout(60000);
+      this.page.setDefaultTimeout(30000);
+      
+      await this.page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+      
+      this.logger.success(`瀏覽器啟動成功 (無頭模式)`);
+    } catch (error) {
+      this.logger.error(`瀏覽器啟動失敗: ${error instanceof Error ? error.message : String(error)}`);
+      throw error;
+    }
   }
 
   private async performLogin(): Promise<void> {
     if (!this.page) throw new Error('頁面未初始化');
-
-    this.logger.info('正在登入系統...');
+    
+    this.logger.info('開始登入流程');
     this.updateStatus({ progress: '正在登入系統...' });
-
+    
     await this.page.goto(CONFIG.URLS.LOGIN_URL, { 
-      waitUntil: 'networkidle2',
+      waitUntil: 'networkidle2', 
       timeout: CONFIG.TIMEOUTS.PAGE_LOAD 
     });
-
-    // 處理可能的彈窗
+    
+    // 處理可能的彈出視窗
     try {
-      await this.page.waitForSelector(SELECTORS.LOGIN.POPUP_CONFIRM, { timeout: 3000 });
-      await this.page.click(SELECTORS.LOGIN.POPUP_CONFIRM);
-      this.logger.info('已處理彈窗確認');
+      const popupButton = await this.page.waitForSelector(SELECTORS.LOGIN.POPUP_CONFIRM, { 
+        timeout: 2000 
+      });
+      if (popupButton) {
+        await popupButton.click();
+        await this.page.waitForTimeout(500);
+        this.logger.info('已處理登入彈出視窗');
+      }
     } catch (error) {
-      // 沒有彈窗，繼續
+      this.logger.info('無彈出視窗需要處理');
     }
-
+    
     // 填寫登入表單
-    await this.page.waitForSelector(SELECTORS.LOGIN.COMPANY_CODE, { timeout: CONFIG.TIMEOUTS.LOGIN });
+    await this.page.waitForSelector(SELECTORS.LOGIN.COMPANY_CODE, { timeout: CONFIG.TIMEOUTS.ELEMENT_WAIT });
     
     await this.page.type(SELECTORS.LOGIN.COMPANY_CODE, this.loginInfo.companyCode, { delay: CONFIG.DELAYS.INPUT_DELAY });
     await this.page.type(SELECTORS.LOGIN.EMPLOYEE_NO, this.loginInfo.username, { delay: CONFIG.DELAYS.INPUT_DELAY });
     await this.page.type(SELECTORS.LOGIN.PASSWORD, this.loginInfo.password, { delay: CONFIG.DELAYS.INPUT_DELAY });
     
-    await this.page.click(SELECTORS.LOGIN.LOGIN_BUTTON);
+    this.logger.info('登入表單填寫完成');
     
-    // 等待登入完成
-    await this.page.waitForNavigation({ 
-      waitUntil: 'networkidle2',
-      timeout: CONFIG.TIMEOUTS.LOGIN 
-    });
-
-    this.logger.success('登入成功');
+    await this.page.click(SELECTORS.LOGIN.LOGIN_BUTTON);
+    await this.page.waitForTimeout(800);
+    
+    const currentUrl = this.page.url();
+    if (currentUrl.includes('apollo.mayohr.com') && !currentUrl.includes('login')) {
+      this.logger.success('登入成功');
+    } else {
+      throw new Error('登入失敗或頁面未正確導向');
+    }
   }
 
   private async navigateToFormApplication(): Promise<void> {
@@ -404,37 +438,35 @@ class CloudAutoAttendanceSystem {
     this.updateStatus({ progress: `開始處理 ${this.attendanceTasks.length} 個補卡任務` });
 
     for (let i = 0; i < this.attendanceTasks.length; i++) {
+      this.currentTaskIndex = i;
       const task = this.attendanceTasks[i];
-      this.logger.info(`處理任務 ${i + 1}/${this.attendanceTasks.length}: ${task.displayName}`);
+      
+      this.logger.info(`[${i + 1}/${this.attendanceTasks.length}] 處理任務: ${task.displayName}`);
       this.updateStatus({ progress: `處理任務 ${i + 1}/${this.attendanceTasks.length}: ${task.displayName}` });
-
+      
       try {
         await this.processSingleAttendanceTask(task);
-        this.logger.success(`任務完成: ${task.displayName}`);
+        this.logger.success(`任務 ${task.displayName} 完成`);
       } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : String(error);
-        this.logger.error(`任務失敗: ${task.displayName} - ${errorMsg}`);
-        // 依照本機版邏輯，任一任務失敗立即終止
-        throw new Error(`任務失敗: ${task.displayName} - ${errorMsg}`);
+        this.logger.error(`任務 ${task.displayName} 失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
+        throw error; // 依照 PRD 要求，任一任務失敗立即終止
       }
     }
-
-    this.logger.success('所有補卡任務完成');
+    
+    this.logger.success('所有補卡任務處理完成');
   }
 
   private async processSingleAttendanceTask(task: AttendanceTask): Promise<void> {
     if (!this.page) throw new Error('頁面未初始化');
-
-    this.logger.info(`開始處理任務: ${task.displayName}`);
-
+    
     let formPage: Page;
-
+    
     // 檢查是否有現有的表單頁面可以重用
     const canReuseFormPage = await this.isFormPageUsable();
     if (canReuseFormPage && this.currentFormPage) {
       this.logger.info('重用現有表單頁面');
       formPage = this.currentFormPage;
-
+      
       if (!this.hasDialogHandler) {
         this.setupDialogHandler(formPage);
         this.hasDialogHandler = true;
@@ -449,21 +481,15 @@ class CloudAutoAttendanceSystem {
       this.currentFormPage = formPage;
       this.hasDialogHandler = true;
     }
-
+    
     try {
       // 在表單頁面中處理
-      this.logger.info('開始填寫補卡表單...');
       await this.fillAttendanceForm(formPage, task);
-      
-      this.logger.info('提交表單...');
       await this.submitAttendanceForm(formPage);
-
-      this.logger.info('處理提交結果...');
-      await this.handleSubmitResult(formPage);
-
+      
       // 檢查是否還有任務需要處理
-      const remainingTasks = this.attendanceTasks.length - 1; // 簡化計算
-
+      const remainingTasks = this.attendanceTasks.length - this.currentTaskIndex - 1;
+      
       if (formPage.isClosed()) {
         // 表單已自動關閉，表示送簽成功
         this.logger.success(`任務 ${task.displayName} 完成`);
@@ -479,7 +505,7 @@ class CloudAutoAttendanceSystem {
         this.currentFormPage = null;
         this.hasDialogHandler = false;
       }
-
+      
     } finally {
       // 只在程式結束或表單自動關閉時才清理
       if (!this.currentFormPage || this.currentFormPage.isClosed()) {
@@ -492,14 +518,14 @@ class CloudAutoAttendanceSystem {
             this.logger.info('表單分頁已自動關閉');
           }
         } catch (closeError) {
-          this.logger.warn('關閉表單分頁時發生錯誤，可能已自動關閉');
+          this.logger.warn(`關閉表單分頁時發生錯誤，可能已自動關閉: ${closeError instanceof Error ? closeError.message : '未知錯誤'}`);
         }
-
+        
         // 切換回表單申請頁面
         if (this.browser) {
           const pages = await this.browser.pages();
           let formApplicationPage = null;
-
+          
           // 尋找表單申請頁面（不是 about:blank）
           for (const page of pages) {
             const url = page.url();
@@ -509,18 +535,18 @@ class CloudAutoAttendanceSystem {
               break;
             }
           }
-
+          
           if (formApplicationPage) {
             this.page = formApplicationPage;
             await this.page.bringToFront();
-            this.logger.info('已切換回表單申請頁面');
+            this.logger.info(`已切換回表單申請頁面: ${this.page.url()}`);
           } else {
             // 如果找不到，使用第一個非空白頁面
             const nonBlankPages = pages.filter(p => !p.url().includes('about:blank'));
             if (nonBlankPages.length > 0) {
               this.page = nonBlankPages[0];
               await this.page.bringToFront();
-              this.logger.info('已切換回主頁面（非空白頁面）');
+              this.logger.info(`已切換回主頁面（非空白頁面）: ${this.page.url()}`);
             } else {
               this.logger.warn('未找到合適的頁面，使用預設頁面');
               this.page = pages[0];
@@ -534,37 +560,24 @@ class CloudAutoAttendanceSystem {
   private async clickForgetPunchLink(): Promise<void> {
     if (!this.page) throw new Error('頁面未初始化');
     
-    // 檢查當前頁面 URL
-    const currentUrl = this.page.url();
-    this.logger.info(`準備點擊忘打卡申請單連結，當前頁面: ${currentUrl}`);
-    
     try {
-      this.logger.info('等待忘打卡申請單連結出現...');
       const link = await this.page.waitForSelector(SELECTORS.FORM_APPLICATION.FORGET_PUNCH_LINK, { 
         timeout: CONFIG.TIMEOUTS.ELEMENT_WAIT 
       });
       if (link) {
-        this.logger.info('找到忘打卡申請單連結，準備點擊...');
         await link.click();
-        this.logger.success('成功點擊忘打卡申請單連結');
       } else {
         throw new Error('找不到忘打卡申請單連結');
       }
     } catch (error) {
       // 嘗試替代選擇器
-      this.logger.warn('主要選擇器失敗，嘗試替代選擇器');
       const altLink = await this.page.waitForSelector(SELECTORS.FORM_APPLICATION.FORGET_PUNCH_LINK_ALT, { 
         timeout: CONFIG.TIMEOUTS.ELEMENT_WAIT 
       });
       if (altLink) {
-        this.logger.info('找到替代選擇器連結，準備點擊...');
         await altLink.click();
-        this.logger.success('成功點擊忘打卡申請單連結（替代選擇器）');
       } else {
-        // 如果還是失敗，檢查頁面結構
-        this.logger.error('所有選擇器都失敗，檢查頁面結構...');
-        await this.checkPageStructure();
-        throw new Error(`找不到忘打卡申請單連結。當前頁面: ${currentUrl}`);
+        throw new Error('找不到忘打卡申請單連結（包含替代選擇器）');
       }
     }
     
@@ -574,31 +587,21 @@ class CloudAutoAttendanceSystem {
   private async waitForNewPageAndSwitch(): Promise<Page> {
     if (!this.browser) throw new Error('瀏覽器未初始化');
     
-    this.logger.info('等待新分頁開啟...');
-    
     const pages = await this.browser.pages();
     const initialPageCount = pages.length;
     
     let attempts = 0;
-    const maxAttempts = 20; // 增加嘗試次數
+    const maxAttempts = 10;
     
     while (attempts < maxAttempts) {
       const currentPages = await this.browser.pages();
       if (currentPages.length > initialPageCount) {
         const newPage = currentPages[currentPages.length - 1];
-        this.logger.info('檢測到新分頁開啟，等待頁面載入...');
-        
-        // 等待頁面載入
         await newPage.waitForTimeout(CONFIG.TIMEOUTS.FORM_LOAD);
         
-        // 檢查頁面 URL
-        const newPageUrl = newPage.url();
-        this.logger.info(`新分頁 URL: ${newPageUrl}`);
-        
-        // 為新分頁設置對話框處理器
+        // 為新分頁設置原生對話框處理器
         this.setupDialogHandler(newPage);
         
-        this.logger.success('新分頁載入完成');
         return newPage;
       }
       await this.page!.waitForTimeout(500);
@@ -627,70 +630,178 @@ class CloudAutoAttendanceSystem {
   }
 
   private async fillAttendanceForm(page: Page, task: AttendanceTask): Promise<void> {
-    // 等待表單載入
-    await page.waitForTimeout(5000);
-
-    // 等待 main iframe
+    this.logger.info(`填寫表單: ${task.displayName}`);
+    
+    // 檢查頁面是否仍然可用
+    if (page.isClosed()) {
+      throw new Error('表單頁面已關閉，無法填寫');
+    }
+    
+    try {
+      // 檢查頁面響應性
+      await page.evaluate(() => document.readyState);
+    } catch (error) {
+      throw new Error(`表單頁面無法響應: ${error instanceof Error ? error.message : '未知錯誤'}`);
+    }
+    
+    // 等待並切換到 main iframe
     const mainFrame = await this.waitForFrame(page, SELECTORS.IFRAMES.MAIN);
-
-    // 1. 選擇類型
+    
+    // 按照 PRD 要求，只處理這三個欄位：
+    // 1. 類型
+    this.logger.info('開始填寫類型欄位');
     await this.selectAttendanceType(mainFrame, task.type);
-
-    // 2. 設定日期時間
+    
+    // 2. 日期/時間
+    this.logger.info('開始填寫日期/時間欄位');
     await this.setDateTime(mainFrame, task);
-
-    // 3. 選擇地點
+    
+    // 3. 地點
+    this.logger.info('開始填寫地點欄位');
     await this.selectLocation(mainFrame);
-
-    await page.waitForTimeout(CONFIG.DELAYS.FORM_FILL_DELAY);
+    
+    this.logger.info('表單填寫完成');
   }
 
   private async waitForFrame(page: Page, selector: string): Promise<Frame> {
-    await page.waitForSelector(selector, { timeout: CONFIG.TIMEOUTS.IFRAME_WAIT });
-    
-    const frameElement = await page.$(selector);
-    if (!frameElement) throw new Error(`找不到 iframe: ${selector}`);
-    
-    const frame = await frameElement.contentFrame();
-    if (!frame) throw new Error(`無法取得 iframe 內容: ${selector}`);
-    
-    return frame;
+    try {
+      // 檢查頁面是否仍然可用
+      if (page.isClosed()) {
+        throw new Error('頁面已關閉，無法等待 iframe');
+      }
+      
+      await page.waitForSelector(selector, { timeout: CONFIG.TIMEOUTS.IFRAME_WAIT });
+      const frameElement = await page.$(selector);
+      const frame = await frameElement?.contentFrame();
+      
+      if (!frame) {
+        throw new Error(`無法取得 iframe: ${selector}`);
+      }
+      
+      return frame;
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message.includes('Session closed') || error.message.includes('Protocol error')) {
+          throw new Error('頁面連線已斷開，無法存取 iframe');
+        }
+        throw error;
+      }
+      throw new Error(`等待 iframe 時發生未知錯誤: ${selector}`);
+    }
   }
 
   private async selectAttendanceType(frame: Frame, type: 'CLOCK_IN' | 'CLOCK_OUT'): Promise<void> {
-    await frame.waitForSelector(SELECTORS.ATTENDANCE_FORM.ATTENDANCE_TYPE_DROPDOWN, { timeout: CONFIG.TIMEOUTS.ELEMENT_WAIT });
-    await frame.click(SELECTORS.ATTENDANCE_FORM.ATTENDANCE_TYPE_DROPDOWN);
+    this.logger.info(`選擇補卡類型: ${type === 'CLOCK_IN' ? '上班' : '下班'}`);
     
-    await frame.waitForTimeout(CONFIG.DELAYS.CLICK_DELAY);
+    // 等待類型欄位容器載入
+    await frame.waitForSelector(SELECTORS.ATTENDANCE_FORM.ATTENDANCE_TYPE_CONTAINER, { 
+      timeout: CONFIG.TIMEOUTS.ELEMENT_WAIT 
+    });
     
-    // 選擇對應的選項
     const optionValue = type === 'CLOCK_IN' ? '1' : '2';
-    const optionSelector = `li[data-value="${optionValue}"]`;
+    const optionText = type === 'CLOCK_IN' ? '上班' : '下班';
     
-    await frame.waitForSelector(optionSelector, { timeout: CONFIG.TIMEOUTS.ELEMENT_WAIT });
-    await frame.click(optionSelector);
+    try {
+      // 方法 1: 先嘗試直接使用隱藏的 select 元素
+      const selectElement = await frame.$(SELECTORS.ATTENDANCE_FORM.ATTENDANCE_TYPE_SELECT);
+      if (selectElement) {
+        await frame.select(SELECTORS.ATTENDANCE_FORM.ATTENDANCE_TYPE_SELECT, optionValue);
+        this.logger.info(`成功使用 select 方法選擇類型: ${optionText} (value=${optionValue})`);
+      } else {
+        throw new Error('找不到 select 元素');
+      }
+    } catch (error) {
+      // 方法 2: 嘗試點擊 Kendo UI 下拉選單
+      try {
+        this.logger.info('嘗試使用 Kendo UI 下拉選單');
+        
+        // 點擊下拉選單開啟選項
+        await frame.click(SELECTORS.ATTENDANCE_FORM.ATTENDANCE_TYPE_DROPDOWN);
+        await frame.waitForTimeout(CONFIG.DELAYS.CLICK_DELAY);
+        
+        // 等待選項列表出現並點擊對應選項
+        const success = await frame.evaluate((text) => {
+          const options = Array.from(document.querySelectorAll('li[data-offset-index]'));
+          const targetOption = options.find(option => option.textContent?.trim() === text);
+          if (targetOption) {
+            (targetOption as HTMLElement).click();
+            return true;
+          }
+          return false;
+        }, optionText);
+        
+        if (success) {
+          this.logger.info(`成功使用 Kendo UI 選擇類型: ${optionText}`);
+        } else {
+          throw new Error('無法在選項列表中找到目標選項');
+        }
+      } catch (kendoError) {
+        throw new Error(`無法選擇補卡類型: ${error instanceof Error ? error.message : '未知錯誤'}`);
+      }
+    }
     
-    await frame.waitForTimeout(CONFIG.DELAYS.CLICK_DELAY);
+    await frame.waitForTimeout(CONFIG.DELAYS.FORM_FILL_DELAY);
   }
 
   private async setDateTime(frame: Frame, task: AttendanceTask): Promise<void> {
-    // 解析日期
-    const [year, month, day] = task.date.split('/').map(Number);
-    const targetDate = new Date(year, month - 1, day);
+    this.logger.info(`設定日期時間: ${task.date}`);
     
-    // 點擊日期輸入框
-    await frame.waitForSelector(SELECTORS.ATTENDANCE_FORM.DATETIME_CALENDAR_BUTTON, { timeout: CONFIG.TIMEOUTS.ELEMENT_WAIT });
-    await frame.click(SELECTORS.ATTENDANCE_FORM.DATETIME_CALENDAR_BUTTON);
+    // 等待日期/時間容器載入
+    await frame.waitForSelector(SELECTORS.ATTENDANCE_FORM.DATETIME_CONTAINER, { 
+      timeout: CONFIG.TIMEOUTS.ELEMENT_WAIT 
+    });
     
-    await frame.waitForTimeout(CONFIG.DELAYS.CLICK_DELAY);
+    try {
+      // 先點擊日曆按鈕來開啟日期選擇器
+      this.logger.info('點擊日曆按鈕開啟日期選擇器');
+      await frame.click(SELECTORS.ATTENDANCE_FORM.DATETIME_CALENDAR_BUTTON);
+      await frame.waitForTimeout(CONFIG.DELAYS.CLICK_DELAY);
+      
+      // 解析目標日期
+      const [year, month, day] = task.date.split('/').map(num => parseInt(num));
+      this.logger.info(`目標日期: ${year}年${month}月${day}日`);
+      
+      // 等待日期選擇器出現
+      await frame.waitForSelector('.k-calendar', { timeout: CONFIG.TIMEOUTS.ELEMENT_WAIT });
+      
+      // 選擇年份和月份（如果需要的話）
+      await this.navigateToTargetMonth(frame, year, month);
+      
+      // 點擊目標日期
+      await this.selectTargetDay(frame, day);
+      
+      this.logger.info(`成功設定日期: ${task.date}`);
+    } catch (error) {
+      this.logger.error(`日期設定失敗: ${error}`);
+      
+      // 嘗試備用方法：直接設定輸入框的值
+      try {
+        this.logger.info('嘗試備用日期設定方法');
+        await frame.evaluate((selector, dateValue) => {
+          const input = document.querySelector(selector) as HTMLInputElement;
+          if (input) {
+            // 設定為當天上午9點的格式
+            const formattedDate = dateValue + ' 09:00:00';
+            input.value = formattedDate;
+            
+            // 觸發各種可能的事件
+            ['input', 'change', 'blur'].forEach(eventType => {
+              const event = new Event(eventType, { bubbles: true });
+              input.dispatchEvent(event);
+            });
+          }
+        }, SELECTORS.ATTENDANCE_FORM.DATETIME_INPUT, task.date);
+        
+        this.logger.info('備用方法設定完成');
+      } catch (backupError) {
+        throw new Error(`無法設定日期時間: ${task.date} - ${error instanceof Error ? error.message : '未知錯誤'}`);
+      }
+    }
     
-    // 導航到目標月份
-    await this.navigateToTargetMonth(frame, year, month);
+    // 最終驗證：檢查輸入框中的日期是否正確
+    await this.verifyDateInput(frame, task);
     
-    // 選擇目標日期
-    await this.selectTargetDay(frame, day);
-    
-    await frame.waitForTimeout(CONFIG.DELAYS.CLICK_DELAY);
+    await frame.waitForTimeout(CONFIG.DELAYS.FORM_FILL_DELAY);
   }
 
   private async navigateToTargetMonth(frame: Frame, targetYear: number, targetMonth: number): Promise<void> {
@@ -811,6 +922,79 @@ class CloudAutoAttendanceSystem {
       return false;
     }
   }
+
+  private async verifyDateInput(frame: Frame, task: AttendanceTask): Promise<void> {
+    try {
+      const inputValue = await frame.evaluate((selector) => {
+        const input = document.querySelector(selector) as HTMLInputElement;
+        return input ? input.value : '';
+      }, SELECTORS.ATTENDANCE_FORM.DATETIME_INPUT);
+      
+      this.logger.info(`日期輸入框當前值: "${inputValue}"`);
+      
+      // 檢查日期是否包含正確的年月日
+      const [targetYear, targetMonth, targetDay] = task.date.split('/');
+      const expectedDateParts = [targetYear, targetMonth.padStart(2, '0'), targetDay.padStart(2, '0')];
+      
+      let isCorrect = true;
+      for (const part of expectedDateParts) {
+        if (!inputValue.includes(part)) {
+          isCorrect = false;
+          break;
+        }
+      }
+      
+      if (!isCorrect) {
+        this.logger.warn(`日期驗證失敗，期望包含 ${expectedDateParts.join('/')}, 實際值: ${inputValue}`);
+        
+        // 嘗試強制設定正確的日期
+        await this.forceSetCorrectDate(frame, task);
+      } else {
+        this.logger.success(`日期驗證成功: ${inputValue} 包含期望的日期 ${task.date}`);
+      }
+      
+    } catch (error) {
+      this.logger.warn(`日期驗證過程發生錯誤: ${error instanceof Error ? error.message : '未知錯誤'}`);
+    }
+  }
+
+  private async forceSetCorrectDate(frame: Frame, task: AttendanceTask): Promise<void> {
+    this.logger.info(`強制設定正確日期: ${task.date}`);
+    
+    try {
+      // 直接設定輸入框的值為正確的日期時間格式
+      const timeValue = task.type === 'CLOCK_IN' ? '09:00:00' : '18:00:00';
+      const correctDateTime = `${task.date} ${timeValue}`;
+      
+      await frame.evaluate((selector, dateTime) => {
+        const input = document.querySelector(selector) as HTMLInputElement;
+        if (input) {
+          input.value = dateTime;
+          
+          // 觸發所有可能的事件來確保變更被識別
+          ['focus', 'input', 'change', 'blur'].forEach(eventType => {
+            const event = new Event(eventType, { bubbles: true });
+            input.dispatchEvent(event);
+          });
+        }
+      }, SELECTORS.ATTENDANCE_FORM.DATETIME_INPUT, correctDateTime);
+      
+      await frame.waitForTimeout(CONFIG.DELAYS.FORM_FILL_DELAY);
+      
+      // 再次驗證
+      const finalValue = await frame.evaluate((selector) => {
+        const input = document.querySelector(selector) as HTMLInputElement;
+        return input ? input.value : '';
+      }, SELECTORS.ATTENDANCE_FORM.DATETIME_INPUT);
+      
+      this.logger.info(`強制設定後的日期值: "${finalValue}"`);
+      
+    } catch (error) {
+      this.logger.error(`強制設定日期失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
+    }
+  }
+
+
 
   async run(): Promise<void> {
     try {
