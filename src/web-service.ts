@@ -425,11 +425,19 @@ class CloudAutoAttendanceSystem {
   private async processSingleAttendanceTask(task: AttendanceTask): Promise<void> {
     if (!this.page) throw new Error('頁面未初始化');
 
+    this.logger.info(`開始處理任務: ${task.displayName}`);
+
     // 點擊忘記打卡連結
     await this.clickForgetPunchLink();
 
     // 等待新頁面並切換
+    this.logger.info('等待新分頁開啟並切換...');
     this.currentFormPage = await this.waitForNewPageAndSwitch();
+
+    // 檢查新分頁是否可用
+    if (this.currentFormPage.isClosed()) {
+      throw new Error('新分頁已關閉，無法繼續處理');
+    }
 
     // 設置對話框處理器
     if (!this.hasDialogHandler) {
@@ -438,17 +446,24 @@ class CloudAutoAttendanceSystem {
     }
 
     // 填寫補卡表單
+    this.logger.info('開始填寫補卡表單...');
     await this.fillAttendanceForm(this.currentFormPage, task);
 
     // 提交表單
+    this.logger.info('提交表單...');
     await this.submitAttendanceForm(this.currentFormPage);
 
     // 處理提交結果
+    this.logger.info('處理提交結果...');
     await this.handleSubmitResult(this.currentFormPage);
 
     // 關閉表單頁面
+    this.logger.info('關閉表單頁面...');
     await this.currentFormPage.close();
     this.currentFormPage = null;
+    this.hasDialogHandler = false;
+
+    this.logger.success(`任務完成: ${task.displayName}`);
   }
 
   private async clickForgetPunchLink(): Promise<void> {
@@ -493,20 +508,56 @@ class CloudAutoAttendanceSystem {
 
   private async waitForNewPageAndSwitch(): Promise<Page> {
     if (!this.browser) throw new Error('瀏覽器未初始化');
-
+    
+    this.logger.info('等待新分頁開啟...');
+    
     const pages = await this.browser.pages();
-    const newPage = pages[pages.length - 1];
+    const initialPageCount = pages.length;
     
-    await newPage.waitForNavigation({ waitUntil: 'networkidle2' });
-    await newPage.waitForTimeout(CONFIG.DELAYS.NAVIGATION_DELAY);
+    let attempts = 0;
+    const maxAttempts = 20; // 增加嘗試次數
     
-    return newPage;
+    while (attempts < maxAttempts) {
+      const currentPages = await this.browser.pages();
+      if (currentPages.length > initialPageCount) {
+        const newPage = currentPages[currentPages.length - 1];
+        this.logger.info('檢測到新分頁開啟，等待頁面載入...');
+        
+        // 等待頁面載入
+        await newPage.waitForTimeout(CONFIG.TIMEOUTS.FORM_LOAD);
+        
+        // 檢查頁面 URL
+        const newPageUrl = newPage.url();
+        this.logger.info(`新分頁 URL: ${newPageUrl}`);
+        
+        // 為新分頁設置對話框處理器
+        this.setupDialogHandler(newPage);
+        
+        this.logger.success('新分頁載入完成');
+        return newPage;
+      }
+      await this.page!.waitForTimeout(500);
+      attempts++;
+    }
+    
+    throw new Error('等待新分頁開啟超時');
   }
 
   private setupDialogHandler(page: Page): void {
+    this.logger.info('為分頁設置 dialog 事件處理器');
+    
     page.on('dialog', async (dialog) => {
-      this.logger.info(`處理對話框: ${dialog.message()}`);
-      await dialog.accept();
+      const message = dialog.message();
+      this.logger.info(`檢測到瀏覽器原生彈窗: ${message}`);
+      
+      // 檢查是否為補卡重複警告
+      if (message.includes('當日已有') && (message.includes('上班') || message.includes('下班')) && message.includes('打卡紀錄')) {
+        this.logger.info('檢測到補卡重複警告彈窗，自動點擊確定');
+        await dialog.accept();
+      } else {
+        this.logger.info('檢測到其他彈窗，自動點擊確定');
+        await dialog.accept();
+      }
     });
   }
 
