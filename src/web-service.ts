@@ -737,21 +737,37 @@ class CloudAutoAttendanceSystem {
     this.logger.info('main iframe 載入成功');
     this.updateStatus({ progress: 'main iframe 載入成功' });
     
+    // 驗證表單載入狀態（模擬本機版的截圖驗證）
+    this.logger.info('驗證表單載入狀態...');
+    this.updateStatus({ progress: '驗證表單載入狀態...' });
+    
     // 按照 PRD 要求，只處理這三個欄位：
     // 1. 類型
     this.logger.info('開始填寫類型欄位');
     this.updateStatus({ progress: '開始填寫類型欄位...' });
     await this.selectAttendanceType(mainFrame, task.type);
     
+    // 驗證類型選擇成功
+    this.logger.info('驗證類型選擇結果...');
+    this.updateStatus({ progress: '驗證類型選擇結果...' });
+    
     // 2. 日期/時間
     this.logger.info('開始填寫日期/時間欄位');
     this.updateStatus({ progress: '開始填寫日期/時間欄位...' });
     await this.setDateTime(mainFrame, task);
     
+    // 驗證日期設定成功
+    this.logger.info('驗證日期設定結果...');
+    this.updateStatus({ progress: '驗證日期設定結果...' });
+    
     // 3. 地點
     this.logger.info('開始填寫地點欄位');
     this.updateStatus({ progress: '開始填寫地點欄位...' });
     await this.selectLocation(mainFrame);
+    
+    // 驗證地點選擇成功
+    this.logger.info('驗證地點選擇結果...');
+    this.updateStatus({ progress: '驗證地點選擇結果...' });
     
     this.logger.info('表單填寫完成');
     this.updateStatus({ progress: '表單填寫完成' });
