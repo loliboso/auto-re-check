@@ -751,8 +751,8 @@ class CloudAutoAttendanceSystem {
     this.logger.info('驗證類型選擇結果...');
     this.updateStatus({ progress: '驗證類型選擇結果...' });
     
-    // 等待系統自動設定個人時間
-    await mainFrame.waitForTimeout(CONFIG.DELAYS.FORM_FILL_DELAY);
+    // 等待系統自動設定個人時間（增加等待時間確保系統有足夠時間處理）
+    await mainFrame.waitForTimeout(2000);
     
     // 2. 日期/時間（在選擇類型後設定日期，保留系統已設定的個人時間）
     this.logger.info('開始填寫日期/時間欄位');
