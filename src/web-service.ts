@@ -1540,7 +1540,7 @@ app.get('/', (req, res) => {
                         <div class="ml-3">
                             <h3 class="text-sm font-medium text-blue-800">安全承諾</h3>
                             <div class="mt-2 text-sm text-blue-700">
-                                <p>• 您的帳號密碼僅用於本次補卡，處理完成後立即銷毀</p>
+                                <p>• 您的工號及密碼僅用於本次補卡，完成後會立即銷毀</p>
                                 <p>• 所有資料傳輸均使用 HTTPS 加密</p>
                                 <p>• 絕對不會儲存您任何的個人資訊</p>
                             </div>
@@ -1561,7 +1561,7 @@ app.get('/', (req, res) => {
                                            class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">帳號</label>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">工號</label>
                                     <input type="text" name="username" required 
                                            class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                                 </div>
@@ -1607,15 +1607,7 @@ app.get('/', (req, res) => {
                     </form>
                 </div>
 
-                <!-- 重試按鈕區塊 -->
-                <div id="retrySection" class="hidden">
-                    <div class="bg-white rounded-lg shadow-md p-6">
-                        <button id="retryBtn" 
-                                class="bg-orange-600 text-white py-2 px-4 rounded-md hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-colors">
-                            重試失敗的補卡
-                        </button>
-                    </div>
-                </div>
+
             </div>
         </div>
 
@@ -1656,10 +1648,12 @@ app.get('/', (req, res) => {
                         break;
                     case 'failed':
                         button.classList.add('failed');
-                        icon.textContent = '❌';
+                        icon.textContent = '🔄';
                         icon.classList.remove('spinner', 'spinner-reverse');
-                        text.textContent = '補卡失敗';
+                        text.textContent = '重新嘗試';
                         counter.textContent = '';
+                        // 將按鈕改為可點擊的重試按鈕
+                        button.onclick = retryPunchCard;
                         break;
                 }
             }
@@ -1882,7 +1876,6 @@ app.get('/', (req, res) => {
                             updateButtonState('failed');
                             updateStatus('❌ ' + (status.error || '補卡失敗'), false, true);
                             showDetailedLog(status.logHistory);
-                            showRetryButton();
                         } else {
                             setTimeout(poll, 2000);
                         }
@@ -1901,9 +1894,7 @@ app.get('/', (req, res) => {
                 resetForm();
             }
             
-            function showRetryButton() {
-                document.getElementById('retrySection').classList.remove('hidden');
-            }
+
             
             function resetForm() {
                 // 重新啟用表單
@@ -1921,20 +1912,41 @@ app.get('/', (req, res) => {
                 document.getElementById('logContainer').classList.add('hidden');
             }
             
-            // 重試按鈕事件
-            document.getElementById('retryBtn').addEventListener('click', () => {
-                // 隱藏重試區塊
-                document.getElementById('retrySection').classList.add('hidden');
+
+
+            function retryPunchCard() {
+                // 重新啟用表單
+                const inputs = document.getElementById('punchForm').querySelectorAll('input, textarea');
+                inputs.forEach(input => input.disabled = false);
                 
-                // 清空表單
-                document.getElementById('punchForm').reset();
-                document.querySelector('input[name="companyCode"]').value = 'TNLMG';
+                // 保留公司代碼、帳號和補卡日期
+                const companyCode = document.querySelector('input[name="companyCode"]').value;
+                const username = document.querySelector('input[name="username"]').value;
+                const attendanceRecords = document.querySelector('textarea[name="attendanceRecords"]').value;
                 
-                // 重置狀態
+                // 清空密碼
+                document.querySelector('input[name="password"]').value = '';
+                
+                // 重置按鈕狀態
                 updateButtonState('initial');
+                const button = document.getElementById('submitBtn');
+                button.onclick = null; // 移除重試事件
+                
+                // 隱藏狀態區塊
                 document.getElementById('statusSection').classList.add('hidden');
                 document.getElementById('logContainer').classList.add('hidden');
-            });
+                
+                // 隱藏重試區塊（如果有的話）
+                document.getElementById('retrySection').classList.add('hidden');
+                
+                // 重新填入保留的值
+                document.querySelector('input[name="companyCode"]').value = companyCode;
+                document.querySelector('input[name="username"]').value = username;
+                document.querySelector('textarea[name="attendanceRecords"]').value = attendanceRecords;
+                
+                // 聚焦到密碼欄位
+                document.querySelector('input[name="password"]').focus();
+            }
         </script>
     </body>
     </html>
