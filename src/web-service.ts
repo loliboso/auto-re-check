@@ -824,22 +824,15 @@ class CloudAutoAttendanceSystem {
       
       // 等待選項列表出現並點擊對應選項
       const success = await frame.evaluate((text) => {
-        // 嘗試多種可能的選擇器
-        const selectors = [
-          'li[data-offset-index]',
-          'li.k-item',
-          '.k-list-container li',
-          '.k-popup li'
-        ];
-        
-        let options: Element[] = [];
-        for (const selector of selectors) {
-          options = Array.from(document.querySelectorAll(selector));
-          if (options.length > 0) {
-            console.log(`找到選項使用選擇器: ${selector}, 數量: ${options.length}`);
-            break;
-          }
+        // 使用正確的 listbox ID
+        const listbox = document.getElementById('fm_attendancetype_listbox');
+        if (!listbox) {
+          console.log('找不到 listbox 元素');
+          return false;
         }
+        
+        const options = Array.from(listbox.querySelectorAll('li'));
+        console.log(`找到選項數量: ${options.length}`);
         
         // 記錄所有選項的文字內容
         const optionTexts = options.map(option => option.textContent?.trim()).filter(Boolean);
@@ -848,8 +841,11 @@ class CloudAutoAttendanceSystem {
         const targetOption = options.find(option => option.textContent?.trim() === text);
         if (targetOption) {
           (targetOption as HTMLElement).click();
+          console.log(`成功點擊選項: ${text}`);
           return true;
         }
+        
+        console.log(`找不到目標選項: ${text}`);
         return false;
       }, optionText);
       
