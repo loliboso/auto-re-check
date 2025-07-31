@@ -777,17 +777,8 @@ class CloudAutoAttendanceSystem {
     this.logger.info('驗證表單載入狀態...');
     this.updateStatus({ progress: '驗證表單載入狀態...' });
     
-    // 按照您的建議，改變執行順序：
-    // 1. 先設定日期（系統會顯示 00:00）
-    this.logger.info('開始填寫日期/時間欄位');
-    this.updateStatus({ progress: '開始填寫日期/時間欄位...' });
-    await this.setDateTime(mainFrame, task);
-    
-    // 驗證日期設定成功
-    this.logger.info('驗證日期設定結果...');
-    this.updateStatus({ progress: '驗證日期設定結果...' });
-    
-    // 2. 再選擇類型（系統會自動填入正確的個人時間）
+    // 恢復原來的順序：先選類型再選日期（避免 HR 系統的日期-1 bug）
+    // 1. 先選擇類型（讓系統自動設定個人時間）
     this.logger.info('開始填寫類型欄位');
     this.updateStatus({ progress: '開始填寫類型欄位...' });
     await this.selectAttendanceType(mainFrame, task.type);
@@ -795,6 +786,18 @@ class CloudAutoAttendanceSystem {
     // 驗證類型選擇成功
     this.logger.info('驗證類型選擇結果...');
     this.updateStatus({ progress: '驗證類型選擇結果...' });
+    
+    // 等待系統自動設定個人時間
+    await mainFrame.waitForTimeout(2000);
+    
+    // 2. 再設定日期（保留系統已設定的個人時間）
+    this.logger.info('開始填寫日期/時間欄位');
+    this.updateStatus({ progress: '開始填寫日期/時間欄位...' });
+    await this.setDateTime(mainFrame, task);
+    
+    // 驗證日期設定成功
+    this.logger.info('驗證日期設定結果...');
+    this.updateStatus({ progress: '驗證日期設定結果...' });
     
     // 驗證日期設定成功
     this.logger.info('驗證日期設定結果...');

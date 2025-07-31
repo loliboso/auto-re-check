@@ -1,5 +1,8 @@
 FROM node:18-alpine
 
+# 設定時區為台灣時區
+ENV TZ=Asia/Taipei
+
 # 安裝 Chromium 和必要的依賴
 RUN apk add --no-cache \
     chromium \
@@ -8,7 +11,8 @@ RUN apk add --no-cache \
     freetype-dev \
     harfbuzz \
     ca-certificates \
-    ttf-freefont
+    ttf-freefont \
+    tzdata
 
 # 設定 Puppeteer 使用系統 Chromium
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
