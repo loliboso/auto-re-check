@@ -1936,8 +1936,7 @@ app.get('/', (req, res) => {
                 document.getElementById('statusSection').classList.add('hidden');
                 document.getElementById('logContainer').classList.add('hidden');
                 
-                // 隱藏重試區塊（如果有的話）
-                document.getElementById('retrySection').classList.add('hidden');
+
                 
                 // 重新填入保留的值
                 document.querySelector('input[name="companyCode"]').value = companyCode;
