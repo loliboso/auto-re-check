@@ -1464,29 +1464,29 @@ app.get('/', (req, res) => {
                 left: 0;
                 width: 100%;
                 height: 100%;
-                background: linear-gradient(90deg, #60a5fa 0%, #3b82f6 100%);
+                background: linear-gradient(90deg, #3b82f6 0%, #1d4ed8 100%);
                 z-index: 1;
                 animation: progressShimmer 4s ease-in-out infinite;
             }
             
             @keyframes progressShimmer {
                 0% { 
-                    background: linear-gradient(90deg, #ffffff 0%, #e0f2fe 20%, #60a5fa 40%, #3b82f6 60%, #1d4ed8 80%, #ffffff 100%);
-                    background-size: 400% 100%;
-                    background-position: -400% 0;
-                    opacity: 0.7;
+                    background: linear-gradient(90deg, #3b82f6 0%, #1d4ed8 30%, #ffffff 50%, #1d4ed8 70%, #3b82f6 100%);
+                    background-size: 200% 100%;
+                    background-position: -200% 0;
+                    opacity: 0.9;
                 }
                 50% {
-                    background: linear-gradient(90deg, #f0f9ff 0%, #ffffff 20%, #e0f2fe 40%, #60a5fa 60%, #3b82f6 80%, #1d4ed8 100%);
-                    background-size: 400% 100%;
+                    background: linear-gradient(90deg, #1d4ed8 0%, #3b82f6 30%, #ffffff 50%, #3b82f6 70%, #1d4ed8 100%);
+                    background-size: 200% 100%;
                     background-position: 0% 0;
                     opacity: 1;
                 }
                 100% { 
-                    background: linear-gradient(90deg, #ffffff 0%, #e0f2fe 20%, #60a5fa 40%, #3b82f6 60%, #1d4ed8 80%, #ffffff 100%);
-                    background-size: 400% 100%;
-                    background-position: 400% 0;
-                    opacity: 0.7;
+                    background: linear-gradient(90deg, #3b82f6 0%, #1d4ed8 30%, #ffffff 50%, #1d4ed8 70%, #3b82f6 100%);
+                    background-size: 200% 100%;
+                    background-position: 200% 0;
+                    opacity: 0.9;
                 }
             }
             
@@ -1755,6 +1755,8 @@ app.get('/', (req, res) => {
                             
                             // 調試：顯示最近的日誌
                             console.log('=== 進度調試開始 ===');
+                            console.log('總任務數:', totalTasks);
+                            console.log('當前任務數:', currentTask);
                             console.log('最近的日誌:', logLines.slice(-5));
                             
                             // 方法1：尋找處理任務的日誌
@@ -1787,6 +1789,11 @@ app.get('/', (req, res) => {
                                 log.includes('檢測到瀏覽器原生彈窗')
                             );
                             
+                            // 方法7：尋找檢測到補卡重複警告彈窗（表示任務已處理）
+                            const duplicateDialogMatches = logLines.filter(log => 
+                                log.includes('檢測到補卡重複警告彈窗')
+                            );
+                            
                             // 調試：顯示各種匹配結果
                             console.log('任務匹配:', taskMatches.length);
                             console.log('完成匹配:', completedMatches.length);
@@ -1794,6 +1801,7 @@ app.get('/', (req, res) => {
                             console.log('表單開啟匹配:', formStillOpenMatches.length);
                             console.log('重複警告匹配:', duplicateWarningMatches.length);
                             console.log('彈窗匹配:', dialogMatches.length);
+                            console.log('重複彈窗匹配:', duplicateDialogMatches.length);
                             
                             // 計算已完成的任務數
                             let completedTasks = 0;
@@ -1812,6 +1820,9 @@ app.get('/', (req, res) => {
                             
                             // 從檢測到瀏覽器原生彈窗日誌計算
                             completedTasks += dialogMatches.length;
+                            
+                            // 從檢測到補卡重複警告彈窗日誌計算
+                            completedTasks += duplicateDialogMatches.length;
                             
                             console.log('計算出的完成任務數:', completedTasks);
                             
