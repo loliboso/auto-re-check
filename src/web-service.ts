@@ -736,15 +736,12 @@ class CloudAutoAttendanceSystem {
         this.logger.info('檢測到補卡重複警告彈窗，自動點擊確定');
         await dialog.accept();
       } else {
-        // 其他所有彈窗都視為錯誤，中斷補卡程序
-        this.logger.error(`檢測到錯誤彈窗: ${message}`);
-        this.logger.error('中斷補卡程序以避免送出錯誤的補卡');
-        
-        // 關閉彈窗
+        // 其他彈窗也接受，但記錄警告（暫時改為與本機版一致的行為）
+        this.logger.warn(`檢測到其他彈窗: ${message}，自動點擊確定`);
         await dialog.accept();
         
-        // 拋出錯誤以中斷當前任務
-        throw new Error(`補卡失敗：檢測到錯誤彈窗 - ${message}`);
+        // 暫時不拋出錯誤，讓程序繼續執行
+        // TODO: 根據實際測試結果決定是否需要恢復錯誤處理
       }
     });
   }
@@ -1456,7 +1453,7 @@ app.get('/', (req, res) => {
                             <div class="mt-2 text-sm text-blue-700">
                                 <p>• 您的帳號密碼僅用於本次補卡，處理完成後立即銷毀</p>
                                 <p>• 所有資料傳輸均使用 HTTPS 加密</p>
-                                <p>• 我們不會儲存任何您的個人資訊</p>
+                                <p>• 本服務絕不會儲存任何您的個人資訊</p>
                             </div>
                         </div>
                     </div>
