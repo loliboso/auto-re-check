@@ -1466,39 +1466,27 @@ app.get('/', (req, res) => {
                 height: 100%;
                 background: linear-gradient(90deg, #60a5fa 0%, #3b82f6 100%);
                 z-index: 1;
-                animation: progressShimmer 2s ease-in-out infinite;
+                animation: progressShimmer 4s ease-in-out infinite;
             }
             
             @keyframes progressShimmer {
                 0% { 
-                    background: linear-gradient(90deg, #ffffff 0%, #60a5fa 25%, #3b82f6 50%, #1d4ed8 75%, #ffffff 100%);
-                    background-size: 300% 100%;
-                    background-position: -300% 0;
-                    opacity: 0.8;
-                }
-                25% {
-                    background: linear-gradient(90deg, #f0f9ff 0%, #ffffff 25%, #60a5fa 50%, #3b82f6 75%, #1d4ed8 100%);
-                    background-size: 300% 100%;
-                    background-position: -150% 0;
-                    opacity: 1;
+                    background: linear-gradient(90deg, #ffffff 0%, #e0f2fe 20%, #60a5fa 40%, #3b82f6 60%, #1d4ed8 80%, #ffffff 100%);
+                    background-size: 400% 100%;
+                    background-position: -400% 0;
+                    opacity: 0.7;
                 }
                 50% {
-                    background: linear-gradient(90deg, #93c5fd 0%, #f0f9ff 25%, #ffffff 50%, #60a5fa 75%, #3b82f6 100%);
-                    background-size: 300% 100%;
+                    background: linear-gradient(90deg, #f0f9ff 0%, #ffffff 20%, #e0f2fe 40%, #60a5fa 60%, #3b82f6 80%, #1d4ed8 100%);
+                    background-size: 400% 100%;
                     background-position: 0% 0;
-                    opacity: 0.9;
-                }
-                75% {
-                    background: linear-gradient(90deg, #60a5fa 0%, #93c5fd 25%, #f0f9ff 50%, #ffffff 75%, #60a5fa 100%);
-                    background-size: 300% 100%;
-                    background-position: 150% 0;
                     opacity: 1;
                 }
                 100% { 
-                    background: linear-gradient(90deg, #ffffff 0%, #60a5fa 25%, #3b82f6 50%, #1d4ed8 75%, #ffffff 100%);
-                    background-size: 300% 100%;
-                    background-position: 300% 0;
-                    opacity: 0.8;
+                    background: linear-gradient(90deg, #ffffff 0%, #e0f2fe 20%, #60a5fa 40%, #3b82f6 60%, #1d4ed8 80%, #ffffff 100%);
+                    background-size: 400% 100%;
+                    background-position: 400% 0;
+                    opacity: 0.7;
                 }
             }
             
@@ -1766,6 +1754,7 @@ app.get('/', (req, res) => {
                             const logLines = status.logHistory || [];
                             
                             // 調試：顯示最近的日誌
+                            console.log('=== 進度調試開始 ===');
                             console.log('最近的日誌:', logLines.slice(-5));
                             
                             // 方法1：尋找處理任務的日誌
@@ -1793,12 +1782,18 @@ app.get('/', (req, res) => {
                                 log.includes('檢測到補卡重複警告')
                             );
                             
+                            // 方法6：尋找檢測到瀏覽器原生彈窗（表示任務已處理）
+                            const dialogMatches = logLines.filter(log => 
+                                log.includes('檢測到瀏覽器原生彈窗')
+                            );
+                            
                             // 調試：顯示各種匹配結果
                             console.log('任務匹配:', taskMatches.length);
                             console.log('完成匹配:', completedMatches.length);
                             console.log('重複匹配:', duplicateMatches.length);
                             console.log('表單開啟匹配:', formStillOpenMatches.length);
                             console.log('重複警告匹配:', duplicateWarningMatches.length);
+                            console.log('彈窗匹配:', dialogMatches.length);
                             
                             // 計算已完成的任務數
                             let completedTasks = 0;
@@ -1814,6 +1809,9 @@ app.get('/', (req, res) => {
                             
                             // 從檢測到補卡重複警告日誌計算
                             completedTasks += duplicateWarningMatches.length;
+                            
+                            // 從檢測到瀏覽器原生彈窗日誌計算
+                            completedTasks += dialogMatches.length;
                             
                             console.log('計算出的完成任務數:', completedTasks);
                             
@@ -1834,6 +1832,7 @@ app.get('/', (req, res) => {
                             // 確保進度不會小於0或大於總數
                             currentTask = Math.max(0, Math.min(currentTask, totalTasks));
                             console.log('最終進度:', currentTask, '/', totalTasks);
+                            console.log('=== 進度調試結束 ===');
                             
                             // 更新按鈕狀態
                             updateButtonState('processing', currentTask, totalTasks);
