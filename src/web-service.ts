@@ -1471,19 +1471,19 @@ app.get('/', (req, res) => {
             
             @keyframes progressShimmer {
                 0% { 
-                    background: linear-gradient(90deg, #3b82f6 0%, #1d4ed8 30%, #ffffff 50%, #1d4ed8 70%, #3b82f6 100%);
+                    background: linear-gradient(90deg, #3b82f6 0%, #1d4ed8 30%, #93c5fd 50%, #1d4ed8 70%, #3b82f6 100%);
                     background-size: 200% 100%;
                     background-position: -200% 0;
                     opacity: 0.9;
                 }
                 50% {
-                    background: linear-gradient(90deg, #1d4ed8 0%, #3b82f6 30%, #ffffff 50%, #3b82f6 70%, #1d4ed8 100%);
+                    background: linear-gradient(90deg, #1d4ed8 0%, #3b82f6 30%, #93c5fd 50%, #3b82f6 70%, #1d4ed8 100%);
                     background-size: 200% 100%;
                     background-position: 0% 0;
                     opacity: 1;
                 }
                 100% { 
-                    background: linear-gradient(90deg, #3b82f6 0%, #1d4ed8 30%, #ffffff 50%, #1d4ed8 70%, #3b82f6 100%);
+                    background: linear-gradient(90deg, #3b82f6 0%, #1d4ed8 30%, #93c5fd 50%, #1d4ed8 70%, #3b82f6 100%);
                     background-size: 200% 100%;
                     background-position: 200% 0;
                     opacity: 0.9;
@@ -1760,7 +1760,7 @@ app.get('/', (req, res) => {
                         console.log('最近的日誌:', logLines.slice(-5));
                         
                         // 更新進度
-                        if (status.status === 'processing') {
+                        if (status.status === 'processing' || status.status === 'queued') {
                             // 方法1：尋找處理任務的日誌
                             const taskMatches = logLines.filter(log => 
                                 log.includes('處理任務') && log.includes('/')
@@ -1796,6 +1796,11 @@ app.get('/', (req, res) => {
                                 log.includes('檢測到補卡重複警告彈窗')
                             );
                             
+                            // 方法8：尋找「on duty record of the day has existed」（表示任務已處理）
+                            const dutyRecordMatches = logLines.filter(log => 
+                                log.includes('on duty record of the day has existed')
+                            );
+                            
                             // 調試：顯示各種匹配結果
                             console.log('任務匹配:', taskMatches.length);
                             console.log('完成匹配:', completedMatches.length);
@@ -1804,6 +1809,7 @@ app.get('/', (req, res) => {
                             console.log('重複警告匹配:', duplicateWarningMatches.length);
                             console.log('彈窗匹配:', dialogMatches.length);
                             console.log('重複彈窗匹配:', duplicateDialogMatches.length);
+                            console.log('值班記錄匹配:', dutyRecordMatches.length);
                             
                             // 計算已完成的任務數
                             let completedTasks = 0;
@@ -1825,6 +1831,9 @@ app.get('/', (req, res) => {
                             
                             // 從檢測到補卡重複警告彈窗日誌計算
                             completedTasks += duplicateDialogMatches.length;
+                            
+                            // 從「on duty record of the day has existed」日誌計算
+                            completedTasks += dutyRecordMatches.length;
                             
                             console.log('計算出的完成任務數:', completedTasks);
                             
