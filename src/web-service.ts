@@ -1471,19 +1471,34 @@ app.get('/', (req, res) => {
             
             @keyframes progressShimmer {
                 0% { 
-                    background: linear-gradient(90deg, #60a5fa 0%, #3b82f6 50%, #1d4ed8 100%);
-                    background-size: 200% 100%;
-                    background-position: -200% 0;
+                    background: linear-gradient(90deg, #ffffff 0%, #60a5fa 25%, #3b82f6 50%, #1d4ed8 75%, #ffffff 100%);
+                    background-size: 300% 100%;
+                    background-position: -300% 0;
+                    opacity: 0.8;
+                }
+                25% {
+                    background: linear-gradient(90deg, #f0f9ff 0%, #ffffff 25%, #60a5fa 50%, #3b82f6 75%, #1d4ed8 100%);
+                    background-size: 300% 100%;
+                    background-position: -150% 0;
+                    opacity: 1;
                 }
                 50% {
-                    background: linear-gradient(90deg, #93c5fd 0%, #60a5fa 50%, #3b82f6 100%);
-                    background-size: 200% 100%;
+                    background: linear-gradient(90deg, #93c5fd 0%, #f0f9ff 25%, #ffffff 50%, #60a5fa 75%, #3b82f6 100%);
+                    background-size: 300% 100%;
                     background-position: 0% 0;
+                    opacity: 0.9;
+                }
+                75% {
+                    background: linear-gradient(90deg, #60a5fa 0%, #93c5fd 25%, #f0f9ff 50%, #ffffff 75%, #60a5fa 100%);
+                    background-size: 300% 100%;
+                    background-position: 150% 0;
+                    opacity: 1;
                 }
                 100% { 
-                    background: linear-gradient(90deg, #60a5fa 0%, #3b82f6 50%, #1d4ed8 100%);
-                    background-size: 200% 100%;
-                    background-position: 200% 0;
+                    background: linear-gradient(90deg, #ffffff 0%, #60a5fa 25%, #3b82f6 50%, #1d4ed8 75%, #ffffff 100%);
+                    background-size: 300% 100%;
+                    background-position: 300% 0;
+                    opacity: 0.8;
                 }
             }
             
@@ -1765,6 +1780,11 @@ app.get('/', (req, res) => {
                                 log.includes('當日已有') && log.includes('打卡紀錄')
                             );
                             
+                            // 方法4：尋找表單分頁仍開啟（表示任務已處理，正在等待確認）
+                            const formStillOpenMatches = logLines.filter(log => 
+                                log.includes('表單分頁仍開啟')
+                            );
+                            
                             // 計算已完成的任務數
                             let completedTasks = 0;
                             
@@ -1773,6 +1793,9 @@ app.get('/', (req, res) => {
                             
                             // 從重複警告日誌計算（每個警告代表一個任務已存在）
                             completedTasks += duplicateMatches.length;
+                            
+                            // 從表單分頁仍開啟日誌計算（每個表示一個任務已處理）
+                            completedTasks += formStillOpenMatches.length;
                             
                             // 如果有明確的進度日誌，優先使用
                             if (taskMatches.length > 0) {
