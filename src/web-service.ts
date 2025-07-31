@@ -270,8 +270,10 @@ class CloudAutoAttendanceSystem {
             '--disable-dev-shm-usage',
             '--window-size=1600,960',
             '--window-position=0,0'
-          ])
-          // 暫時移除時區設定，測試 HR 系統的原始行為
+          ]),
+          // 設定台灣時區
+          '--timezone=Asia/Taipei',
+          '--lang=zh-TW'
         ]
       };
       
