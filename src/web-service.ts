@@ -1748,17 +1748,19 @@ app.get('/', (req, res) => {
                         const response = await fetch(\`/api/status/\${requestId}\`);
                         const status = await response.json();
                         
+                        // 調試：每次狀態更新都顯示信息
+                        console.log('=== 狀態更新調試 ===');
+                        console.log('當前狀態:', status.status);
+                        console.log('總任務數:', totalTasks);
+                        console.log('當前任務數:', currentTask);
+                        
+                        // 從日誌中解析當前任務進度
+                        const logLines = status.logHistory || [];
+                        console.log('日誌總數:', logLines.length);
+                        console.log('最近的日誌:', logLines.slice(-5));
+                        
                         // 更新進度
                         if (status.status === 'processing') {
-                            // 從日誌中解析當前任務進度
-                            const logLines = status.logHistory || [];
-                            
-                            // 調試：顯示最近的日誌
-                            console.log('=== 進度調試開始 ===');
-                            console.log('總任務數:', totalTasks);
-                            console.log('當前任務數:', currentTask);
-                            console.log('最近的日誌:', logLines.slice(-5));
-                            
                             // 方法1：尋找處理任務的日誌
                             const taskMatches = logLines.filter(log => 
                                 log.includes('處理任務') && log.includes('/')
@@ -1843,11 +1845,12 @@ app.get('/', (req, res) => {
                             // 確保進度不會小於0或大於總數
                             currentTask = Math.max(0, Math.min(currentTask, totalTasks));
                             console.log('最終進度:', currentTask, '/', totalTasks);
-                            console.log('=== 進度調試結束 ===');
                             
                             // 更新按鈕狀態
                             updateButtonState('processing', currentTask, totalTasks);
                         }
+                        
+                        console.log('=== 狀態更新調試結束 ===');
                         
                         // 更新狀態顯示
                         updateStatus(status.progress || '處理中...');
