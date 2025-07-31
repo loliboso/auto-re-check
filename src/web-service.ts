@@ -777,8 +777,17 @@ class CloudAutoAttendanceSystem {
     this.logger.info('驗證表單載入狀態...');
     this.updateStatus({ progress: '驗證表單載入狀態...' });
     
-    // 按照 PRD 要求，只處理這三個欄位：
-    // 1. 類型（先選擇，讓系統自動設定個人時間）
+    // 按照您的建議，改變執行順序：
+    // 1. 先設定日期（系統會顯示 00:00）
+    this.logger.info('開始填寫日期/時間欄位');
+    this.updateStatus({ progress: '開始填寫日期/時間欄位...' });
+    await this.setDateTime(mainFrame, task);
+    
+    // 驗證日期設定成功
+    this.logger.info('驗證日期設定結果...');
+    this.updateStatus({ progress: '驗證日期設定結果...' });
+    
+    // 2. 再選擇類型（系統會自動填入正確的個人時間）
     this.logger.info('開始填寫類型欄位');
     this.updateStatus({ progress: '開始填寫類型欄位...' });
     await this.selectAttendanceType(mainFrame, task.type);
@@ -786,14 +795,6 @@ class CloudAutoAttendanceSystem {
     // 驗證類型選擇成功
     this.logger.info('驗證類型選擇結果...');
     this.updateStatus({ progress: '驗證類型選擇結果...' });
-    
-    // 等待系統自動設定個人時間（增加等待時間確保系統有足夠時間處理）
-    await mainFrame.waitForTimeout(2000);
-    
-    // 2. 日期/時間（在選擇類型後設定日期，保留系統已設定的個人時間）
-    this.logger.info('開始填寫日期/時間欄位');
-    this.updateStatus({ progress: '開始填寫日期/時間欄位...' });
-    await this.setDateTime(mainFrame, task);
     
     // 驗證日期設定成功
     this.logger.info('驗證日期設定結果...');
