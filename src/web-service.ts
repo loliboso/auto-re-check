@@ -1049,7 +1049,20 @@ class CloudAutoAttendanceSystem {
       });
       
       if (targetCell) {
-        (targetCell as HTMLElement).click();
+        // 使用更強制的方式點擊日期
+        const clickEvent = new MouseEvent('click', {
+          bubbles: true,
+          cancelable: true,
+          view: window
+        });
+        targetCell.dispatchEvent(clickEvent);
+        
+        // 同時觸發 mousedown 和 mouseup 事件
+        const mouseDownEvent = new MouseEvent('mousedown', { bubbles: true });
+        const mouseUpEvent = new MouseEvent('mouseup', { bubbles: true });
+        targetCell.dispatchEvent(mouseDownEvent);
+        targetCell.dispatchEvent(mouseUpEvent);
+        
         return true;
       }
       return false;
@@ -1247,14 +1260,16 @@ class CloudAutoAttendanceSystem {
       
       this.logger.info(`日期輸入框當前值: "${inputValue}"`);
       
-      // 檢查日期是否包含正確的年月日
+      // 更嚴格的日期驗證：檢查是否包含正確的年月日
       const [targetYear, targetMonth, targetDay] = task.date.split('/');
       const expectedDateParts = [targetYear, targetMonth.padStart(2, '0'), targetDay.padStart(2, '0')];
       
+      // 檢查輸入值是否包含所有期望的日期部分
       let isCorrect = true;
       for (const part of expectedDateParts) {
         if (!inputValue.includes(part)) {
           isCorrect = false;
+          this.logger.warn(`日期驗證失敗：輸入值 "${inputValue}" 不包含期望的部分 "${part}"`);
           break;
         }
       }
@@ -1277,9 +1292,15 @@ class CloudAutoAttendanceSystem {
     this.logger.info(`強制設定正確日期: ${task.date}`);
     
     try {
-      // 直接設定輸入框的值為正確的日期時間格式
-      const timeValue = task.type === 'CLOCK_IN' ? '09:00:00' : '18:00:00';
-      const correctDateTime = `${task.date} ${timeValue}`;
+      // 將日期格式從 YYYY/MM/DD 轉換為 YYYY-MM-DD
+      const [year, month, day] = task.date.split('/');
+      const formattedDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+      
+      // 根據打卡類型設定時間
+      const timeValue = task.type === 'CLOCK_IN' ? '08:30:00' : '17:30:00';
+      const correctDateTime = `${formattedDate} ${timeValue}`;
+      
+      this.logger.info(`強制設定日期時間: ${correctDateTime}`);
       
       await frame.evaluate((selector, dateTime) => {
         const input = document.querySelector(selector) as HTMLInputElement;
