@@ -1429,6 +1429,59 @@ app.get('/', (req, res) => {
         <style>
             .fade-in { animation: fadeIn 0.5s ease-in; }
             @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+            
+            .spinner {
+                animation: spin 1s linear infinite;
+            }
+            @keyframes spin {
+                from { transform: rotate(0deg); }
+                to { transform: rotate(360deg); }
+            }
+            
+            .progress-button {
+                transition: all 0.3s ease;
+                background: linear-gradient(90deg, #3b82f6 0%, #1d4ed8 100%);
+            }
+            
+            .progress-button.processing {
+                background: linear-gradient(90deg, #3b82f6 0%, #1d4ed8 100%);
+                position: relative;
+                overflow: hidden;
+            }
+            
+            .progress-button.processing::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                height: 100%;
+                background: linear-gradient(90deg, #60a5fa 0%, #3b82f6 100%);
+                transition: width 0.3s ease;
+                z-index: 1;
+            }
+            
+            .progress-button.completed {
+                background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+            }
+            
+            .progress-button.failed {
+                background: linear-gradient(90deg, #ef4444 0%, #dc2626 100%);
+            }
+            
+            .progress-content {
+                position: relative;
+                z-index: 2;
+            }
+            
+            .status-success {
+                background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+                border: 2px solid #10b981;
+            }
+            
+            .status-error {
+                background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+                border: 2px solid #ef4444;
+            }
         </style>
     </head>
     <body class="bg-gray-50 min-h-screen">
@@ -1445,7 +1498,7 @@ app.get('/', (req, res) => {
                     <div class="flex items-start">
                         <div class="flex-shrink-0">
                             <svg class="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
-                                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                                <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd" />
                             </svg>
                         </div>
                         <div class="ml-3">
@@ -1497,33 +1550,34 @@ app.get('/', (req, res) => {
                             </div>
                         </div>
 
-                        <!-- 提交按鈕 -->
+                        <!-- 執行狀態區塊 (移動到按鈕上方) -->
+                        <div id="statusSection" class="hidden">
+                            <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+                                <h2 class="text-lg font-semibold text-gray-800 mb-4">📺 執行狀態</h2>
+                                <div id="status" class="text-sm font-mono bg-gray-100 rounded p-4 min-h-[60px] whitespace-pre-wrap mb-4"></div>
+                                <div id="logContainer" class="text-xs font-mono bg-gray-50 rounded p-3 max-h-[300px] overflow-y-auto border hidden"></div>
+                            </div>
+                        </div>
+
+                        <!-- 進度條按鈕 -->
                         <button type="submit" id="submitBtn"
-                                class="w-full bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors">
-                            開始自動補卡
+                                class="progress-button w-full text-white py-3 px-4 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all">
+                            <div class="progress-content flex items-center justify-center space-x-2">
+                                <span id="buttonIcon">🚀</span>
+                                <span id="buttonText">開始自動補卡</span>
+                                <span id="buttonCounter"></span>
+                            </div>
                         </button>
                     </form>
                 </div>
 
-                <!-- 執行狀態區塊 -->
-                <div id="statusSection" class="hidden">
-                    <div class="bg-white rounded-lg shadow-md p-6 mb-6">
-                        <h2 class="text-lg font-semibold text-gray-800 mb-4">📺 執行狀態</h2>
-                        <div id="status" class="text-sm font-mono bg-gray-100 rounded p-4 min-h-[100px] whitespace-pre-wrap mb-4"></div>
-                        <div id="logContainer" class="text-xs font-mono bg-gray-50 rounded p-3 max-h-[300px] overflow-y-auto border"></div>
-                    </div>
-                </div>
-
-                <!-- 完成狀態區塊 -->
-                <div id="resultSection" class="hidden">
+                <!-- 重試按鈕區塊 -->
+                <div id="retrySection" class="hidden">
                     <div class="bg-white rounded-lg shadow-md p-6">
-                        <div id="resultContent"></div>
-                        <div id="retrySection" class="mt-4 hidden">
-                            <button id="retryBtn" 
-                                    class="bg-orange-600 text-white py-2 px-4 rounded-md hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-colors">
-                                重試失敗的補卡
-                            </button>
-                        </div>
+                        <button id="retryBtn" 
+                                class="bg-orange-600 text-white py-2 px-4 rounded-md hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-colors">
+                            重試失敗的補卡
+                        </button>
                     </div>
                 </div>
             </div>
@@ -1532,6 +1586,78 @@ app.get('/', (req, res) => {
         <script>
             let currentRequestId = null;
             let failedRecords = [];
+            let totalTasks = 0;
+            let currentTask = 0;
+
+            // 更新按鈕狀態
+            function updateButtonState(state, current, total) {
+                const button = document.getElementById('submitBtn');
+                const icon = document.getElementById('buttonIcon');
+                const text = document.getElementById('buttonText');
+                const counter = document.getElementById('buttonCounter');
+                
+                button.className = 'progress-button w-full text-white py-3 px-4 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all';
+                
+                switch(state) {
+                    case 'initial':
+                        icon.textContent = '🚀';
+                        text.textContent = '開始自動補卡';
+                        counter.textContent = '';
+                        break;
+                    case 'processing':
+                        button.classList.add('processing');
+                        icon.textContent = '🔄';
+                        icon.classList.add('spinner');
+                        text.textContent = '處理中...';
+                        counter.textContent = total > 0 ? \` \${current}/\${total}\` : '';
+                        break;
+                    case 'completed':
+                        button.classList.add('completed');
+                        icon.textContent = '✅';
+                        icon.classList.remove('spinner');
+                        text.textContent = '補卡完成！';
+                        counter.textContent = '';
+                        break;
+                    case 'failed':
+                        button.classList.add('failed');
+                        icon.textContent = '❌';
+                        icon.classList.remove('spinner');
+                        text.textContent = '補卡失敗';
+                        counter.textContent = '';
+                        break;
+                }
+            }
+
+            // 更新執行狀態
+            function updateStatus(message, isSuccess = false, isError = false) {
+                const statusDiv = document.getElementById('status');
+                const statusSection = document.getElementById('statusSection');
+                
+                statusSection.classList.remove('hidden');
+                statusDiv.textContent = message;
+                
+                // 更新樣式
+                statusDiv.className = 'text-sm font-mono rounded p-4 min-h-[60px] whitespace-pre-wrap mb-4';
+                if (isSuccess) {
+                    statusDiv.classList.add('status-success');
+                } else if (isError) {
+                    statusDiv.classList.add('status-error');
+                } else {
+                    statusDiv.classList.add('bg-gray-100');
+                }
+            }
+
+            // 顯示詳細日誌（僅在失敗時）
+            function showDetailedLog(logHistory) {
+                const logContainer = document.getElementById('logContainer');
+                if (logHistory && logHistory.length > 0) {
+                    logContainer.innerHTML = logHistory
+                        .map(log => \`<div class="text-xs text-gray-600 mb-1">\${log}</div>\`)
+                        .join('');
+                    logContainer.classList.remove('hidden');
+                    logContainer.scrollTop = logContainer.scrollHeight;
+                }
+            }
 
             document.getElementById('punchForm').addEventListener('submit', async (e) => {
                 e.preventDefault();
@@ -1544,21 +1670,29 @@ app.get('/', (req, res) => {
                     attendanceRecords: formData.get('attendanceRecords')
                 };
                 
-                // 顯示狀態區塊
-                document.getElementById('statusSection').classList.remove('hidden');
-                document.getElementById('resultSection').classList.add('hidden');
+                // 解析任務數量
+                const lines = data.attendanceRecords.split('\\n').filter(line => line.trim());
+                totalTasks = 0;
+                for (const line of lines) {
+                    if (line.includes('上班未打卡') && line.includes('下班未打卡')) {
+                        totalTasks += 2;
+                    } else if (line.includes('上班未打卡') || line.includes('下班未打卡')) {
+                        totalTasks += 1;
+                    }
+                }
                 
-                // 更新狀態
-                const statusDiv = document.getElementById('status');
-                statusDiv.textContent = '正在處理中，請稍候...';
+                // 更新按鈕狀態
+                updateButtonState('processing', 0, totalTasks);
+                updateStatus('正在準備處理...');
                 
-                // 禁用提交按鈕
-                const submitBtn = document.getElementById('submitBtn');
-                submitBtn.disabled = true;
-                submitBtn.textContent = '處理中...';
+                // 隱藏重試區塊
+                document.getElementById('retrySection').classList.add('hidden');
+                
+                // 禁用表單
+                const inputs = e.target.querySelectorAll('input, textarea');
+                inputs.forEach(input => input.disabled = true);
                 
                 try {
-                    // 送出補卡請求
                     const response = await fetch('/api/punch-card', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -1569,7 +1703,6 @@ app.get('/', (req, res) => {
                     
                     if (response.ok) {
                         currentRequestId = result.requestId;
-                        // 輪詢狀態
                         pollStatus(result.requestId);
                     } else {
                         throw new Error(result.error);
@@ -1580,121 +1713,91 @@ app.get('/', (req, res) => {
             });
             
             async function pollStatus(requestId) {
-                const statusDiv = document.getElementById('status');
-                
                 const poll = async () => {
                     try {
                         const response = await fetch(\`/api/status/\${requestId}\`);
                         const status = await response.json();
                         
-                        // 更新狀態顯示
-                        statusDiv.textContent = status.progress || '處理中...';
-                        
-                        // 顯示完整的日誌歷史
-                        if (status.logHistory && status.logHistory.length > 0) {
-                            const logContainer = document.getElementById('logContainer');
-                            if (logContainer) {
-                                logContainer.innerHTML = status.logHistory
-                                    .map(log => \`<div class="text-xs text-gray-600 mb-1">\${log}</div>\`)
-                                    .join('');
-                                logContainer.scrollTop = logContainer.scrollHeight;
+                        // 更新進度
+                        if (status.status === 'processing') {
+                            // 從日誌中解析當前任務進度
+                            const logLines = status.logHistory || [];
+                            const taskMatches = logLines.filter(log => 
+                                log.includes('處理任務') && log.includes('/')
+                            );
+                            if (taskMatches.length > 0) {
+                                const lastMatch = taskMatches[taskMatches.length - 1];
+                                const match = lastMatch.match(/(\\d+)\\/(\\d+)/);
+                                if (match) {
+                                    currentTask = parseInt(match[1]);
+                                    updateButtonState('processing', currentTask, totalTasks);
+                                }
                             }
                         }
                         
+                        // 更新狀態顯示
+                        updateStatus(status.progress || '處理中...');
+                        
                         if (status.status === 'completed') {
-                            showSuccess('✅ 補卡完成！' + (status.message || ''));
+                            updateButtonState('completed');
+                            updateStatus('✅ ' + (status.message || '補卡完成！'), true);
                         } else if (status.status === 'failed') {
                             failedRecords = status.failedRecords || [];
-                            showError('❌ 補卡失敗：' + (status.error || '未知錯誤'));
+                            updateButtonState('failed');
+                            updateStatus('❌ ' + (status.error || '補卡失敗'), false, true);
+                            showDetailedLog(status.logHistory);
+                            showRetryButton();
                         } else {
-                            setTimeout(poll, 2000); // 2秒後再次檢查
+                            setTimeout(poll, 2000);
                         }
                     } catch (error) {
-                        showError('連線錯誤：' + error.message);
+                        updateButtonState('failed');
+                        updateStatus('❌ 連線錯誤：' + error.message, false, true);
                     }
                 };
                 
                 poll();
             }
             
-            function showSuccess(message) {
-                const resultSection = document.getElementById('resultSection');
-                const resultContent = document.getElementById('resultContent');
-                
-                resultContent.innerHTML = \`
-                    <div class="flex items-center">
-                        <div class="flex-shrink-0">
-                            <svg class="h-8 w-8 text-green-400" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-                            </svg>
-                        </div>
-                        <div class="ml-3">
-                            <h3 class="text-lg font-medium text-green-800">補卡成功</h3>
-                            <div class="mt-2 text-sm text-green-700">
-                                <p>\${message}</p>
-                            </div>
-                        </div>
-                    </div>
-                \`;
-                
-                resultSection.classList.remove('hidden');
-                resultSection.classList.add('fade-in');
-                
-                // 重置表單
+            function showError(message) {
+                updateButtonState('failed');
+                updateStatus('❌ ' + message, false, true);
                 resetForm();
             }
             
-            function showError(message) {
-                const resultSection = document.getElementById('resultSection');
-                const resultContent = document.getElementById('resultContent');
-                const retrySection = document.getElementById('retrySection');
-                
-                resultContent.innerHTML = \`
-                    <div class="flex items-center">
-                        <div class="flex-shrink-0">
-                            <svg class="h-8 w-8 text-red-400" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
-                            </svg>
-                        </div>
-                        <div class="ml-3">
-                            <h3 class="text-lg font-medium text-red-800">補卡失敗</h3>
-                            <div class="mt-2 text-sm text-red-700">
-                                <p>\${message}</p>
-                                \${failedRecords.length > 0 ? \`<p class="mt-2 font-medium">失敗的補卡：</p><ul class="list-disc list-inside mt-1">\${failedRecords.map(record => \`<li>\${record}</li>\`).join('')}</ul>\` : ''}
-                            </div>
-                        </div>
-                    </div>
-                \`;
-                
-                resultSection.classList.remove('hidden');
-                resultSection.classList.add('fade-in');
-                
-                // 顯示重試按鈕 - 修復：只要有錯誤就顯示重試按鈕
-                retrySection.classList.remove('hidden');
-                
-                // 重置表單
-                resetForm();
+            function showRetryButton() {
+                document.getElementById('retrySection').classList.remove('hidden');
             }
             
             function resetForm() {
-                // 重新啟用提交按鈕
-                const submitBtn = document.getElementById('submitBtn');
-                submitBtn.disabled = false;
-                submitBtn.textContent = '開始自動補卡';
+                // 重新啟用表單
+                const inputs = document.getElementById('punchForm').querySelectorAll('input, textarea');
+                inputs.forEach(input => input.disabled = false);
+                
+                // 重置按鈕
+                updateButtonState('initial');
                 
                 // 清空密碼欄位
                 document.querySelector('input[name="password"]').value = '';
+                
+                // 隱藏狀態區塊
+                document.getElementById('statusSection').classList.add('hidden');
+                document.getElementById('logContainer').classList.add('hidden');
             }
             
             // 重試按鈕事件
             document.getElementById('retryBtn').addEventListener('click', () => {
-                // 隱藏結果區塊，重新顯示表單
-                document.getElementById('resultSection').classList.add('hidden');
-                document.getElementById('statusSection').classList.add('hidden');
+                // 隱藏重試區塊
+                document.getElementById('retrySection').classList.add('hidden');
                 
                 // 清空表單
                 document.getElementById('punchForm').reset();
                 document.querySelector('input[name="companyCode"]').value = 'TNLMG';
+                
+                // 重置狀態
+                updateButtonState('initial');
+                document.getElementById('statusSection').classList.add('hidden');
+                document.getElementById('logContainer').classList.add('hidden');
             });
         </script>
     </body>
