@@ -854,6 +854,20 @@ class CloudAutoAttendanceSystem {
     }
     
     await frame.waitForTimeout(CONFIG.DELAYS.FORM_FILL_DELAY);
+    
+    // 檢查系統是否自動填入日期/時間
+    const dateTimeValue = await frame.evaluate((selector) => {
+      const input = document.querySelector(selector) as HTMLInputElement;
+      return input ? input.value : '';
+    }, SELECTORS.ATTENDANCE_FORM.DATETIME_INPUT);
+    
+    this.logger.info(`類型選擇後，日期/時間欄位值: "${dateTimeValue}"`);
+    
+    if (!dateTimeValue || dateTimeValue.trim() === '') {
+      this.logger.warn('⚠️ 系統未自動填入日期/時間，可能需要手動設定');
+    } else {
+      this.logger.success(`✅ 系統已自動填入日期/時間: ${dateTimeValue}`);
+    }
   }
 
   private async setDateTime(frame: Frame, task: AttendanceTask): Promise<void> {
