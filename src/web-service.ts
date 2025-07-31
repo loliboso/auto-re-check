@@ -1438,6 +1438,14 @@ app.get('/', (req, res) => {
                 to { transform: rotate(360deg); }
             }
             
+            .spinner-reverse {
+                animation: spin-reverse 1s linear infinite;
+            }
+            @keyframes spin-reverse {
+                from { transform: rotate(360deg); }
+                to { transform: rotate(0deg); }
+            }
+            
             .progress-button {
                 transition: all 0.3s ease;
                 background: linear-gradient(90deg, #3b82f6 0%, #1d4ed8 100%);
@@ -1458,6 +1466,25 @@ app.get('/', (req, res) => {
                 background: linear-gradient(90deg, #60a5fa 0%, #3b82f6 100%);
                 transition: width 0.3s ease;
                 z-index: 1;
+                animation: progressShimmer 2s ease-in-out infinite;
+            }
+            
+            @keyframes progressShimmer {
+                0% { 
+                    background: linear-gradient(90deg, #60a5fa 0%, #3b82f6 50%, #1d4ed8 100%);
+                    background-size: 200% 100%;
+                    background-position: -200% 0;
+                }
+                50% {
+                    background: linear-gradient(90deg, #93c5fd 0%, #60a5fa 50%, #3b82f6 100%);
+                    background-size: 200% 100%;
+                    background-position: 0% 0;
+                }
+                100% { 
+                    background: linear-gradient(90deg, #60a5fa 0%, #3b82f6 50%, #1d4ed8 100%);
+                    background-size: 200% 100%;
+                    background-position: 200% 0;
+                }
             }
             
             .progress-button.completed {
@@ -1502,11 +1529,11 @@ app.get('/', (req, res) => {
                             </svg>
                         </div>
                         <div class="ml-3">
-                            <h3 class="text-sm font-medium text-blue-800">🔒 安全承諾</h3>
+                            <h3 class="text-sm font-medium text-blue-800">安全承諾</h3>
                             <div class="mt-2 text-sm text-blue-700">
                                 <p>• 您的帳號密碼僅用於本次補卡，處理完成後立即銷毀</p>
                                 <p>• 所有資料傳輸均使用 HTTPS 加密</p>
-                                <p>• 本服務絕不會儲存任何您的個人資訊</p>
+                                <p>• 絕對不會儲存您任何的個人資訊</p>
                             </div>
                         </div>
                     </div>
@@ -1606,22 +1633,22 @@ app.get('/', (req, res) => {
                         break;
                     case 'processing':
                         button.classList.add('processing');
-                        icon.textContent = '🔄';
-                        icon.classList.add('spinner');
+                        icon.textContent = '↺';
+                        icon.classList.add('spinner-reverse');
                         text.textContent = '處理中...';
                         counter.textContent = total > 0 ? \` \${current}/\${total}\` : '';
                         break;
                     case 'completed':
                         button.classList.add('completed');
                         icon.textContent = '✅';
-                        icon.classList.remove('spinner');
+                        icon.classList.remove('spinner', 'spinner-reverse');
                         text.textContent = '補卡完成！';
                         counter.textContent = '';
                         break;
                     case 'failed':
                         button.classList.add('failed');
                         icon.textContent = '❌';
-                        icon.classList.remove('spinner');
+                        icon.classList.remove('spinner', 'spinner-reverse');
                         text.textContent = '補卡失敗';
                         counter.textContent = '';
                         break;
@@ -1722,17 +1749,45 @@ app.get('/', (req, res) => {
                         if (status.status === 'processing') {
                             // 從日誌中解析當前任務進度
                             const logLines = status.logHistory || [];
+                            
+                            // 方法1：尋找處理任務的日誌
                             const taskMatches = logLines.filter(log => 
                                 log.includes('處理任務') && log.includes('/')
                             );
+                            
+                            // 方法2：尋找任務完成的日誌
+                            const completedMatches = logLines.filter(log => 
+                                log.includes('任務') && log.includes('完成')
+                            );
+                            
+                            // 方法3：尋找補卡重複警告（表示該任務已處理）
+                            const duplicateMatches = logLines.filter(log => 
+                                log.includes('當日已有') && log.includes('打卡紀錄')
+                            );
+                            
+                            // 計算已完成的任務數
+                            let completedTasks = 0;
+                            
+                            // 從任務完成日誌計算
+                            completedTasks += completedMatches.length;
+                            
+                            // 從重複警告日誌計算（每個警告代表一個任務已存在）
+                            completedTasks += duplicateMatches.length;
+                            
+                            // 如果有明確的進度日誌，優先使用
                             if (taskMatches.length > 0) {
                                 const lastMatch = taskMatches[taskMatches.length - 1];
                                 const match = lastMatch.match(/(\\d+)\\/(\\d+)/);
                                 if (match) {
                                     currentTask = parseInt(match[1]);
-                                    updateButtonState('processing', currentTask, totalTasks);
                                 }
+                            } else if (completedTasks > 0) {
+                                // 使用計算出的完成任務數
+                                currentTask = Math.min(completedTasks, totalTasks);
                             }
+                            
+                            // 更新按鈕狀態
+                            updateButtonState('processing', currentTask, totalTasks);
                         }
                         
                         // 更新狀態顯示
