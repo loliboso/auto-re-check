@@ -824,7 +824,27 @@ class CloudAutoAttendanceSystem {
       
       // 等待選項列表出現並點擊對應選項
       const success = await frame.evaluate((text) => {
-        const options = Array.from(document.querySelectorAll('li[data-offset-index]'));
+        // 嘗試多種可能的選擇器
+        const selectors = [
+          'li[data-offset-index]',
+          'li.k-item',
+          '.k-list-container li',
+          '.k-popup li'
+        ];
+        
+        let options: Element[] = [];
+        for (const selector of selectors) {
+          options = Array.from(document.querySelectorAll(selector));
+          if (options.length > 0) {
+            console.log(`找到選項使用選擇器: ${selector}, 數量: ${options.length}`);
+            break;
+          }
+        }
+        
+        // 記錄所有選項的文字內容
+        const optionTexts = options.map(option => option.textContent?.trim()).filter(Boolean);
+        console.log(`所有選項文字: ${optionTexts.join(', ')}`);
+        
         const targetOption = options.find(option => option.textContent?.trim() === text);
         if (targetOption) {
           (targetOption as HTMLElement).click();
