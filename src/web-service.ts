@@ -880,33 +880,16 @@ class CloudAutoAttendanceSystem {
       // 點擊目標日期
       await this.selectTargetDay(frame, day);
       
-      this.logger.info(`成功設定日期: ${task.date}`);
+      this.logger.info(`成功透過日曆設定日期: ${task.date}`);
     } catch (error) {
-      this.logger.error(`日期設定失敗: ${error}`);
-      
-      // 嘗試備用方法：直接設定輸入框的值
-      try {
-        this.logger.info('嘗試備用日期設定方法');
-        await frame.evaluate((selector, dateValue) => {
-          const input = document.querySelector(selector) as HTMLInputElement;
-          if (input) {
-            // 設定為當天上午9點的格式
-            const formattedDate = dateValue + ' 09:00:00';
-            input.value = formattedDate;
-            
-            // 觸發各種可能的事件
-            ['input', 'change', 'blur'].forEach(eventType => {
-              const event = new Event(eventType, { bubbles: true });
-              input.dispatchEvent(event);
-            });
-          }
-        }, SELECTORS.ATTENDANCE_FORM.DATETIME_INPUT, task.date);
-        
-        this.logger.info('備用方法設定完成');
-      } catch (backupError) {
-        throw new Error(`無法設定日期時間: ${task.date} - ${error instanceof Error ? error.message : '未知錯誤'}`);
-      }
+      this.logger.warn(`日曆設定日期失敗: ${error instanceof Error ? error.message : '未知錯誤'}。將嘗試強制設定。`);
+      // 不需要單獨的備用方法，forceSetCorrectDate 會處理它
     }
+    
+    // 總是強制設定正確的日期和時間
+    // 這確保時間始終正確（08:30:00 或 17:30:00）
+    // 並且日期格式統一為 YYYY-MM-DD
+    await this.forceSetCorrectDate(frame, task);
     
     // 最終驗證：檢查輸入框中的日期是否正確
     await this.verifyDateInput(frame, task);
