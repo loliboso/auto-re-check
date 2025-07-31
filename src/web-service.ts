@@ -1462,9 +1462,9 @@ app.get('/', (req, res) => {
                 position: absolute;
                 top: 0;
                 left: 0;
+                width: 100%;
                 height: 100%;
                 background: linear-gradient(90deg, #60a5fa 0%, #3b82f6 100%);
-                transition: width 0.3s ease;
                 z-index: 1;
                 animation: progressShimmer 2s ease-in-out infinite;
             }
@@ -1765,6 +1765,9 @@ app.get('/', (req, res) => {
                             // 從日誌中解析當前任務進度
                             const logLines = status.logHistory || [];
                             
+                            // 調試：顯示最近的日誌
+                            console.log('最近的日誌:', logLines.slice(-5));
+                            
                             // 方法1：尋找處理任務的日誌
                             const taskMatches = logLines.filter(log => 
                                 log.includes('處理任務') && log.includes('/')
@@ -1785,6 +1788,18 @@ app.get('/', (req, res) => {
                                 log.includes('表單分頁仍開啟')
                             );
                             
+                            // 方法5：尋找檢測到補卡重複警告（表示任務已處理）
+                            const duplicateWarningMatches = logLines.filter(log => 
+                                log.includes('檢測到補卡重複警告')
+                            );
+                            
+                            // 調試：顯示各種匹配結果
+                            console.log('任務匹配:', taskMatches.length);
+                            console.log('完成匹配:', completedMatches.length);
+                            console.log('重複匹配:', duplicateMatches.length);
+                            console.log('表單開啟匹配:', formStillOpenMatches.length);
+                            console.log('重複警告匹配:', duplicateWarningMatches.length);
+                            
                             // 計算已完成的任務數
                             let completedTasks = 0;
                             
@@ -1797,17 +1812,28 @@ app.get('/', (req, res) => {
                             // 從表單分頁仍開啟日誌計算（每個表示一個任務已處理）
                             completedTasks += formStillOpenMatches.length;
                             
+                            // 從檢測到補卡重複警告日誌計算
+                            completedTasks += duplicateWarningMatches.length;
+                            
+                            console.log('計算出的完成任務數:', completedTasks);
+                            
                             // 如果有明確的進度日誌，優先使用
                             if (taskMatches.length > 0) {
                                 const lastMatch = taskMatches[taskMatches.length - 1];
                                 const match = lastMatch.match(/(\\d+)\\/(\\d+)/);
                                 if (match) {
                                     currentTask = parseInt(match[1]);
+                                    console.log('從明確進度日誌得到:', currentTask);
                                 }
                             } else if (completedTasks > 0) {
                                 // 使用計算出的完成任務數
                                 currentTask = Math.min(completedTasks, totalTasks);
+                                console.log('從計算結果得到:', currentTask);
                             }
+                            
+                            // 確保進度不會小於0或大於總數
+                            currentTask = Math.max(0, Math.min(currentTask, totalTasks));
+                            console.log('最終進度:', currentTask, '/', totalTasks);
                             
                             // 更新按鈕狀態
                             updateButtonState('processing', currentTask, totalTasks);
