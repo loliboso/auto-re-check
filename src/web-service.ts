@@ -1364,6 +1364,12 @@ class CloudAutoAttendanceSystem {
 
   async run(): Promise<void> {
     try {
+      // 立即更新狀態為 processing
+      this.updateStatus({ 
+        status: 'processing',
+        progress: '正在啟動瀏覽器...'
+      });
+      
       await this.initializeBrowser();
       await this.performLogin();
       await this.navigateToFormApplication();
@@ -1760,7 +1766,7 @@ app.get('/', (req, res) => {
                         console.log('最近的日誌:', logLines.slice(-5));
                         
                         // 更新進度
-                        if (status.status === 'processing' || status.status === 'queued') {
+                        if (status.status === 'processing') {
                             // 方法1：尋找處理任務的日誌
                             const taskMatches = logLines.filter(log => 
                                 log.includes('處理任務') && log.includes('/')
