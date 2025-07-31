@@ -935,6 +935,15 @@ class CloudAutoAttendanceSystem {
       await this.selectTargetDay(frame, day);
       
       this.logger.info(`成功透過日曆設定日期: ${task.date}`);
+      
+      // 檢查日曆選擇後的實際輸入框值
+      const afterCalendarValue = await frame.evaluate((selector) => {
+        const input = document.querySelector(selector) as HTMLInputElement;
+        return input ? input.value : '';
+      }, SELECTORS.ATTENDANCE_FORM.DATETIME_INPUT);
+      
+      this.logger.info(`日曆選擇後，輸入框實際值: "${afterCalendarValue}"`);
+      
     } catch (error) {
       this.logger.error(`日期設定失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
       
