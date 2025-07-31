@@ -904,7 +904,29 @@ class CloudAutoAttendanceSystem {
       this.logger.info(`成功透過日曆設定日期: ${task.date}`);
     } catch (error) {
       this.logger.error(`日期設定失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
-      throw new Error(`無法設定日期: ${task.date} - ${error instanceof Error ? error.message : '未知錯誤'}`);
+      
+      // 嘗試備用方法：直接設定輸入框的值
+      try {
+        this.logger.info('嘗試備用日期設定方法');
+        await frame.evaluate((selector, dateValue) => {
+          const input = document.querySelector(selector) as HTMLInputElement;
+          if (input) {
+            // 設定為當天上午9點的格式
+            const formattedDate = dateValue + ' 09:00:00';
+            input.value = formattedDate;
+            
+            // 觸發各種可能的事件
+            ['input', 'change', 'blur'].forEach(eventType => {
+              const event = new Event(eventType, { bubbles: true });
+              input.dispatchEvent(event);
+            });
+          }
+        }, SELECTORS.ATTENDANCE_FORM.DATETIME_INPUT, task.date);
+        
+        this.logger.info('備用方法設定完成');
+      } catch (backupError) {
+        throw new Error(`無法設定日期: ${task.date} - ${error instanceof Error ? error.message : '未知錯誤'}`);
+      }
     }
     
     // 等待系統自動設定時間
