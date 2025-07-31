@@ -293,6 +293,37 @@ class CloudAutoAttendanceSystem {
       
       await this.page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
       
+      // 設定頁面時區為台灣時區
+      await this.page.evaluateOnNewDocument(() => {
+        // 覆蓋 Date 物件以模擬台灣時區
+        const originalDate = Date;
+        const taiwanOffset = 8 * 60; // UTC+8 分鐘
+        
+        function TaiwanDate(...args: any[]) {
+          if (args.length === 0) {
+            // 無參數：返回當前台灣時間
+            const utcDate = new originalDate();
+            const utcTime = utcDate.getTime();
+            const taiwanTime = utcTime + (taiwanOffset * 60 * 1000);
+            return new originalDate(taiwanTime);
+          } else {
+            // 有參數：正常建構
+            return new originalDate(args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
+          }
+        }
+        
+        // 複製 Date 的靜態方法
+        TaiwanDate.now = () => originalDate.now() + (taiwanOffset * 60 * 1000);
+        TaiwanDate.parse = originalDate.parse;
+        TaiwanDate.UTC = originalDate.UTC;
+        
+        // 複製原型方法
+        TaiwanDate.prototype = originalDate.prototype;
+        
+        // 替換全域 Date
+        (globalThis as any).Date = TaiwanDate;
+      });
+      
       this.logger.success(`瀏覽器啟動成功 (無頭模式)`);
     } catch (error) {
       this.logger.error(`瀏覽器啟動失敗: ${error instanceof Error ? error.message : String(error)}`);
