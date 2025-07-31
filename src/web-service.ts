@@ -742,7 +742,7 @@ class CloudAutoAttendanceSystem {
     this.updateStatus({ progress: '驗證表單載入狀態...' });
     
     // 按照 PRD 要求，只處理這三個欄位：
-    // 1. 類型
+    // 1. 類型（先選擇，讓系統自動設定個人時間）
     this.logger.info('開始填寫類型欄位');
     this.updateStatus({ progress: '開始填寫類型欄位...' });
     await this.selectAttendanceType(mainFrame, task.type);
@@ -751,7 +751,10 @@ class CloudAutoAttendanceSystem {
     this.logger.info('驗證類型選擇結果...');
     this.updateStatus({ progress: '驗證類型選擇結果...' });
     
-    // 2. 日期/時間
+    // 等待系統自動設定個人時間
+    await mainFrame.waitForTimeout(CONFIG.DELAYS.FORM_FILL_DELAY);
+    
+    // 2. 日期/時間（在選擇類型後設定日期，保留系統已設定的個人時間）
     this.logger.info('開始填寫日期/時間欄位');
     this.updateStatus({ progress: '開始填寫日期/時間欄位...' });
     await this.setDateTime(mainFrame, task);
@@ -886,8 +889,8 @@ class CloudAutoAttendanceSystem {
       // 不需要單獨的備用方法，forceSetCorrectDate 會處理它
     }
     
-    // 總是強制設定正確的日期，但保留人資系統自動帶入的時間
-    // 這確保日期正確，但不會覆蓋用戶的個人上下班時間設定
+    // 在選擇類型後，系統應該已經自動設定了個人時間
+    // 現在只需要確保日期正確，並保留系統已設定的時間
     await this.forceSetCorrectDate(frame, task);
     
     // 最終驗證：檢查輸入框中的日期是否正確
