@@ -814,42 +814,44 @@ class CloudAutoAttendanceSystem {
     const optionValue = type === 'CLOCK_IN' ? '1' : '2';
     const optionText = type === 'CLOCK_IN' ? '上班' : '下班';
     
+    // 強制使用 Kendo UI 下拉選單點擊方式，更接近人類操作
     try {
-      // 方法 1: 先嘗試直接使用隱藏的 select 元素
-      const selectElement = await frame.$(SELECTORS.ATTENDANCE_FORM.ATTENDANCE_TYPE_SELECT);
-      if (selectElement) {
-        await frame.select(SELECTORS.ATTENDANCE_FORM.ATTENDANCE_TYPE_SELECT, optionValue);
-        this.logger.info(`成功使用 select 方法選擇類型: ${optionText} (value=${optionValue})`);
-      } else {
-        throw new Error('找不到 select 元素');
-      }
-    } catch (error) {
-      // 方法 2: 嘗試點擊 Kendo UI 下拉選單
-      try {
-        this.logger.info('嘗試使用 Kendo UI 下拉選單');
-        
-        // 點擊下拉選單開啟選項
-        await frame.click(SELECTORS.ATTENDANCE_FORM.ATTENDANCE_TYPE_DROPDOWN);
-        await frame.waitForTimeout(CONFIG.DELAYS.CLICK_DELAY);
-        
-        // 等待選項列表出現並點擊對應選項
-        const success = await frame.evaluate((text) => {
-          const options = Array.from(document.querySelectorAll('li[data-offset-index]'));
-          const targetOption = options.find(option => option.textContent?.trim() === text);
-          if (targetOption) {
-            (targetOption as HTMLElement).click();
-            return true;
-          }
-          return false;
-        }, optionText);
-        
-        if (success) {
-          this.logger.info(`成功使用 Kendo UI 選擇類型: ${optionText}`);
-        } else {
-          throw new Error('無法在選項列表中找到目標選項');
+      this.logger.info('使用 Kendo UI 下拉選單點擊方式選擇類型');
+      
+      // 點擊下拉選單開啟選項
+      await frame.click(SELECTORS.ATTENDANCE_FORM.ATTENDANCE_TYPE_DROPDOWN);
+      await frame.waitForTimeout(CONFIG.DELAYS.CLICK_DELAY);
+      
+      // 等待選項列表出現並點擊對應選項
+      const success = await frame.evaluate((text) => {
+        const options = Array.from(document.querySelectorAll('li[data-offset-index]'));
+        const targetOption = options.find(option => option.textContent?.trim() === text);
+        if (targetOption) {
+          (targetOption as HTMLElement).click();
+          return true;
         }
-      } catch (kendoError) {
-        throw new Error(`無法選擇補卡類型: ${error instanceof Error ? error.message : '未知錯誤'}`);
+        return false;
+      }, optionText);
+      
+      if (success) {
+        this.logger.info(`成功使用 Kendo UI 選擇類型: ${optionText}`);
+      } else {
+        throw new Error('無法在選項列表中找到目標選項');
+      }
+    } catch (kendoError) {
+      // 備用方法：如果 Kendo UI 失敗，再嘗試直接設定 select 值
+      this.logger.warn(`Kendo UI 選擇失敗，嘗試備用方法: ${kendoError instanceof Error ? kendoError.message : '未知錯誤'}`);
+      
+      try {
+        const selectElement = await frame.$(SELECTORS.ATTENDANCE_FORM.ATTENDANCE_TYPE_SELECT);
+        if (selectElement) {
+          await frame.select(SELECTORS.ATTENDANCE_FORM.ATTENDANCE_TYPE_SELECT, optionValue);
+          this.logger.info(`成功使用備用 select 方法選擇類型: ${optionText} (value=${optionValue})`);
+        } else {
+          throw new Error('找不到 select 元素');
+        }
+      } catch (selectError) {
+        throw new Error(`無法選擇補卡類型: ${kendoError instanceof Error ? kendoError.message : '未知錯誤'}`);
       }
     }
     
