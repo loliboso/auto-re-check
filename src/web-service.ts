@@ -1863,6 +1863,10 @@ app.get('/', (req, res) => {
                             
                             // 更新按鈕狀態
                             updateButtonState('processing', currentTask, totalTasks);
+                        } else if (status.status === 'queued' && logLines.length > 10) {
+                            // 備用機制：如果狀態還是 queued 但有很多日誌，說明任務在進行中
+                            console.log('備用機制：狀態為 queued 但日誌很多，任務可能在進行中');
+                            // 這裡可以加入簡單的進度判斷邏輯
                         }
                         
                         console.log('=== 狀態更新調試結束 ===');
