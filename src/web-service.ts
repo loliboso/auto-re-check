@@ -731,13 +731,20 @@ class CloudAutoAttendanceSystem {
       const message = dialog.message();
       this.logger.info(`檢測到瀏覽器原生彈窗: ${message}`);
       
-      // 檢查是否為補卡重複警告
+      // 檢查是否為補卡重複警告（這是可以接受的）
       if (message.includes('當日已有') && (message.includes('上班') || message.includes('下班')) && message.includes('打卡紀錄')) {
         this.logger.info('檢測到補卡重複警告彈窗，自動點擊確定');
         await dialog.accept();
       } else {
-        this.logger.info('檢測到其他彈窗，自動點擊確定');
+        // 其他所有彈窗都視為錯誤，中斷補卡程序
+        this.logger.error(`檢測到錯誤彈窗: ${message}`);
+        this.logger.error('中斷補卡程序以避免送出錯誤的補卡');
+        
+        // 關閉彈窗
         await dialog.accept();
+        
+        // 拋出錯誤以中斷當前任務
+        throw new Error(`補卡失敗：檢測到錯誤彈窗 - ${message}`);
       }
     });
   }
