@@ -814,60 +814,42 @@ class CloudAutoAttendanceSystem {
     const optionValue = type === 'CLOCK_IN' ? '1' : '2';
     const optionText = type === 'CLOCK_IN' ? '上班' : '下班';
     
-    // 強制使用 Kendo UI 下拉選單點擊方式，更接近人類操作
     try {
-      this.logger.info('使用 Kendo UI 下拉選單點擊方式選擇類型');
-      
-      // 點擊下拉選單開啟選項
-      await frame.click(SELECTORS.ATTENDANCE_FORM.ATTENDANCE_TYPE_DROPDOWN);
-      await frame.waitForTimeout(CONFIG.DELAYS.CLICK_DELAY);
-      
-      // 等待選項列表出現並點擊對應選項
-      const success = await frame.evaluate((text) => {
-        // 使用正確的 listbox ID
-        const listbox = document.getElementById('fm_attendancetype_listbox');
-        if (!listbox) {
-          console.log('找不到 listbox 元素');
-          return false;
-        }
-        
-        const options = Array.from(listbox.querySelectorAll('li'));
-        console.log(`找到選項數量: ${options.length}`);
-        
-        // 記錄所有選項的文字內容
-        const optionTexts = options.map(option => option.textContent?.trim()).filter(Boolean);
-        console.log(`所有選項文字: ${optionTexts.join(', ')}`);
-        
-        const targetOption = options.find(option => option.textContent?.trim() === text);
-        if (targetOption) {
-          (targetOption as HTMLElement).click();
-          console.log(`成功點擊選項: ${text}`);
-          return true;
-        }
-        
-        console.log(`找不到目標選項: ${text}`);
-        return false;
-      }, optionText);
-      
-      if (success) {
-        this.logger.info(`成功使用 Kendo UI 選擇類型: ${optionText}`);
+      // 方法 1: 先嘗試直接使用隱藏的 select 元素（與本機版一致）
+      const selectElement = await frame.$(SELECTORS.ATTENDANCE_FORM.ATTENDANCE_TYPE_SELECT);
+      if (selectElement) {
+        await frame.select(SELECTORS.ATTENDANCE_FORM.ATTENDANCE_TYPE_SELECT, optionValue);
+        this.logger.info(`成功使用 select 方法選擇類型: ${optionText} (value=${optionValue})`);
       } else {
-        throw new Error('無法在選項列表中找到目標選項');
+        throw new Error('找不到 select 元素');
       }
-    } catch (kendoError) {
-      // 備用方法：如果 Kendo UI 失敗，再嘗試直接設定 select 值
-      this.logger.warn(`Kendo UI 選擇失敗，嘗試備用方法: ${kendoError instanceof Error ? kendoError.message : '未知錯誤'}`);
-      
+    } catch (error) {
+      // 方法 2: 嘗試點擊 Kendo UI 下拉選單（備用方法）
       try {
-        const selectElement = await frame.$(SELECTORS.ATTENDANCE_FORM.ATTENDANCE_TYPE_SELECT);
-        if (selectElement) {
-          await frame.select(SELECTORS.ATTENDANCE_FORM.ATTENDANCE_TYPE_SELECT, optionValue);
-          this.logger.info(`成功使用備用 select 方法選擇類型: ${optionText} (value=${optionValue})`);
+        this.logger.info('嘗試使用 Kendo UI 下拉選單');
+        
+        // 點擊下拉選單開啟選項
+        await frame.click(SELECTORS.ATTENDANCE_FORM.ATTENDANCE_TYPE_DROPDOWN);
+        await frame.waitForTimeout(CONFIG.DELAYS.CLICK_DELAY);
+        
+        // 等待選項列表出現並點擊對應選項
+        const success = await frame.evaluate((text) => {
+          const options = Array.from(document.querySelectorAll('li[data-offset-index]'));
+          const targetOption = options.find(option => option.textContent?.trim() === text);
+          if (targetOption) {
+            (targetOption as HTMLElement).click();
+            return true;
+          }
+          return false;
+        }, optionText);
+        
+        if (success) {
+          this.logger.info(`成功使用 Kendo UI 選擇類型: ${optionText}`);
         } else {
-          throw new Error('找不到 select 元素');
+          throw new Error('無法在選項列表中找到目標選項');
         }
-      } catch (selectError) {
-        throw new Error(`無法選擇補卡類型: ${kendoError instanceof Error ? kendoError.message : '未知錯誤'}`);
+      } catch (kendoError) {
+        throw new Error(`無法選擇補卡類型: ${error instanceof Error ? error.message : '未知錯誤'}`);
       }
     }
     
@@ -905,14 +887,14 @@ class CloudAutoAttendanceSystem {
     } catch (error) {
       this.logger.error(`日期設定失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
       
-      // 嘗試備用方法：直接設定輸入框的值
+      // 嘗試備用方法：直接設定輸入框的值（只設定日期，不設定時間）
       try {
         this.logger.info('嘗試備用日期設定方法');
         await frame.evaluate((selector, dateValue) => {
           const input = document.querySelector(selector) as HTMLInputElement;
           if (input) {
-            // 設定為當天上午9點的格式
-            const formattedDate = dateValue + ' 09:00:00';
+            // 只設定日期，不設定時間，讓系統自動帶入時間
+            const formattedDate = dateValue.replace(/\//g, '-');
             input.value = formattedDate;
             
             // 觸發各種可能的事件
