@@ -263,12 +263,17 @@ class CloudAutoAttendanceSystem {
       const launchOptions: any = {
         headless: CONFIG.BROWSER.HEADLESS,
         timeout: 30000,
-        args: CONFIG.BROWSER.HEADLESS ? CONFIG.BROWSER.ARGS : [
-          '--no-sandbox',
-          '--disable-setuid-sandbox', 
-          '--disable-dev-shm-usage',
-          '--window-size=1600,960',
-          '--window-position=0,0'
+        args: [
+          ...(CONFIG.BROWSER.HEADLESS ? CONFIG.BROWSER.ARGS : [
+            '--no-sandbox',
+            '--disable-setuid-sandbox', 
+            '--disable-dev-shm-usage',
+            '--window-size=1600,960',
+            '--window-position=0,0'
+          ]),
+          // 設定台灣時區
+          '--timezone=Asia/Taipei',
+          '--lang=zh-TW'
         ]
       };
       
