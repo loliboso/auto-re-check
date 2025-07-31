@@ -857,7 +857,7 @@ class CloudAutoAttendanceSystem {
   }
 
   private async setDateTime(frame: Frame, task: AttendanceTask): Promise<void> {
-    this.logger.info(`設定日期時間: ${task.date}`);
+    this.logger.info(`設定日期: ${task.date}`);
     
     // 等待日期/時間容器載入
     await frame.waitForSelector(SELECTORS.ATTENDANCE_FORM.DATETIME_CONTAINER, { 
@@ -885,18 +885,15 @@ class CloudAutoAttendanceSystem {
       
       this.logger.info(`成功透過日曆設定日期: ${task.date}`);
     } catch (error) {
-      this.logger.warn(`日曆設定日期失敗: ${error instanceof Error ? error.message : '未知錯誤'}。將嘗試強制設定。`);
-      // 不需要單獨的備用方法，forceSetCorrectDate 會處理它
+      this.logger.error(`日期設定失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
+      throw new Error(`無法設定日期: ${task.date} - ${error instanceof Error ? error.message : '未知錯誤'}`);
     }
     
-    // 在選擇類型後，系統應該已經自動設定了個人時間
-    // 現在只需要確保日期正確，並保留系統已設定的時間
-    await this.forceSetCorrectDate(frame, task);
+    // 等待系統自動設定時間
+    await frame.waitForTimeout(CONFIG.DELAYS.FORM_FILL_DELAY);
     
     // 最終驗證：檢查輸入框中的日期是否正確
     await this.verifyDateInput(frame, task);
-    
-    await frame.waitForTimeout(CONFIG.DELAYS.FORM_FILL_DELAY);
   }
 
   private async navigateToTargetMonth(frame: Frame, targetYear: number, targetMonth: number): Promise<void> {
@@ -1245,7 +1242,7 @@ class CloudAutoAttendanceSystem {
       
       this.logger.info(`日期輸入框當前值: "${inputValue}"`);
       
-      // 更嚴格的日期驗證：檢查是否包含正確的年月日
+      // 只檢查日期部分，不檢查時間
       const [targetYear, targetMonth, targetDay] = task.date.split('/');
       const expectedDateParts = [targetYear, targetMonth.padStart(2, '0'), targetDay.padStart(2, '0')];
       
@@ -1260,76 +1257,19 @@ class CloudAutoAttendanceSystem {
       }
       
       if (!isCorrect) {
-        this.logger.warn(`日期驗證失敗，期望包含 ${expectedDateParts.join('/')}, 實際值: ${inputValue}`);
-        
-        // 嘗試強制設定正確的日期
-        await this.forceSetCorrectDate(frame, task);
+        this.logger.error(`日期驗證失敗，期望包含 ${expectedDateParts.join('/')}, 實際值: ${inputValue}`);
+        throw new Error(`日期設定失敗：期望 ${task.date}，實際值 ${inputValue}`);
       } else {
         this.logger.success(`日期驗證成功: ${inputValue} 包含期望的日期 ${task.date}`);
       }
       
     } catch (error) {
-      this.logger.warn(`日期驗證過程發生錯誤: ${error instanceof Error ? error.message : '未知錯誤'}`);
+      this.logger.error(`日期驗證過程發生錯誤: ${error instanceof Error ? error.message : '未知錯誤'}`);
+      throw error;
     }
   }
 
-  private async forceSetCorrectDate(frame: Frame, task: AttendanceTask): Promise<void> {
-    this.logger.info(`強制設定正確日期（保留系統時間）: ${task.date}`);
-    
-    try {
-      // 先獲取當前輸入框的值，看看系統是否已經帶入了時間
-      const currentValue = await frame.evaluate((selector) => {
-        const input = document.querySelector(selector) as HTMLInputElement;
-        return input ? input.value : '';
-      }, SELECTORS.ATTENDANCE_FORM.DATETIME_INPUT);
-      
-      this.logger.info(`當前輸入框值: "${currentValue}"`);
-      
-      // 將日期格式從 YYYY/MM/DD 轉換為 YYYY-MM-DD
-      const [year, month, day] = task.date.split('/');
-      const formattedDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-      
-      let finalDateTime: string;
-      
-      // 檢查當前值是否包含時間部分
-      if (currentValue && currentValue.includes(' ')) {
-        // 如果系統已經帶入了時間，我們只替換日期部分，保留時間
-        const timePart = currentValue.split(' ')[1];
-        finalDateTime = `${formattedDate} ${timePart}`;
-        this.logger.info(`保留系統時間: ${timePart}，設定日期時間: ${finalDateTime}`);
-      } else {
-        // 如果沒有時間部分，只設定日期，讓系統自動帶入時間
-        finalDateTime = formattedDate;
-        this.logger.info(`只設定日期，讓系統自動帶入時間: ${finalDateTime}`);
-      }
-      
-      await frame.evaluate((selector, dateTime) => {
-        const input = document.querySelector(selector) as HTMLInputElement;
-        if (input) {
-          input.value = dateTime;
-          
-          // 觸發所有可能的事件來確保變更被識別
-          ['focus', 'input', 'change', 'blur'].forEach(eventType => {
-            const event = new Event(eventType, { bubbles: true });
-            input.dispatchEvent(event);
-          });
-        }
-      }, SELECTORS.ATTENDANCE_FORM.DATETIME_INPUT, finalDateTime);
-      
-      await frame.waitForTimeout(CONFIG.DELAYS.FORM_FILL_DELAY);
-      
-      // 再次驗證
-      const finalValue = await frame.evaluate((selector) => {
-        const input = document.querySelector(selector) as HTMLInputElement;
-        return input ? input.value : '';
-      }, SELECTORS.ATTENDANCE_FORM.DATETIME_INPUT);
-      
-      this.logger.info(`強制設定後的日期值: "${finalValue}"`);
-      
-    } catch (error) {
-      this.logger.error(`強制設定日期失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
-    }
-  }
+
 
 
 
