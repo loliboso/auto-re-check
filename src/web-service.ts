@@ -1715,8 +1715,7 @@ app.get('/', (req, res) => {
                 updateButtonState('processing', 0, totalTasks);
                 updateStatus('正在準備處理...');
                 
-                // 隱藏重試區塊
-                document.getElementById('retrySection').classList.add('hidden');
+
                 
                 // 禁用表單
                 const inputs = e.target.querySelectorAll('input, textarea');
