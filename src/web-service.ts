@@ -886,9 +886,8 @@ class CloudAutoAttendanceSystem {
       // 不需要單獨的備用方法，forceSetCorrectDate 會處理它
     }
     
-    // 總是強制設定正確的日期和時間
-    // 這確保時間始終正確（08:30:00 或 17:30:00）
-    // 並且日期格式統一為 YYYY-MM-DD
+    // 總是強制設定正確的日期，但保留人資系統自動帶入的時間
+    // 這確保日期正確，但不會覆蓋用戶的個人上下班時間設定
     await this.forceSetCorrectDate(frame, task);
     
     // 最終驗證：檢查輸入框中的日期是否正確
@@ -1272,18 +1271,34 @@ class CloudAutoAttendanceSystem {
   }
 
   private async forceSetCorrectDate(frame: Frame, task: AttendanceTask): Promise<void> {
-    this.logger.info(`強制設定正確日期: ${task.date}`);
+    this.logger.info(`強制設定正確日期（保留系統時間）: ${task.date}`);
     
     try {
+      // 先獲取當前輸入框的值，看看系統是否已經帶入了時間
+      const currentValue = await frame.evaluate((selector) => {
+        const input = document.querySelector(selector) as HTMLInputElement;
+        return input ? input.value : '';
+      }, SELECTORS.ATTENDANCE_FORM.DATETIME_INPUT);
+      
+      this.logger.info(`當前輸入框值: "${currentValue}"`);
+      
       // 將日期格式從 YYYY/MM/DD 轉換為 YYYY-MM-DD
       const [year, month, day] = task.date.split('/');
       const formattedDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
       
-      // 根據打卡類型設定時間
-      const timeValue = task.type === 'CLOCK_IN' ? '08:30:00' : '17:30:00';
-      const correctDateTime = `${formattedDate} ${timeValue}`;
+      let finalDateTime: string;
       
-      this.logger.info(`強制設定日期時間: ${correctDateTime}`);
+      // 檢查當前值是否包含時間部分
+      if (currentValue && currentValue.includes(' ')) {
+        // 如果系統已經帶入了時間，我們只替換日期部分，保留時間
+        const timePart = currentValue.split(' ')[1];
+        finalDateTime = `${formattedDate} ${timePart}`;
+        this.logger.info(`保留系統時間: ${timePart}，設定日期時間: ${finalDateTime}`);
+      } else {
+        // 如果沒有時間部分，只設定日期，讓系統自動帶入時間
+        finalDateTime = formattedDate;
+        this.logger.info(`只設定日期，讓系統自動帶入時間: ${finalDateTime}`);
+      }
       
       await frame.evaluate((selector, dateTime) => {
         const input = document.querySelector(selector) as HTMLInputElement;
@@ -1296,7 +1311,7 @@ class CloudAutoAttendanceSystem {
             input.dispatchEvent(event);
           });
         }
-      }, SELECTORS.ATTENDANCE_FORM.DATETIME_INPUT, correctDateTime);
+      }, SELECTORS.ATTENDANCE_FORM.DATETIME_INPUT, finalDateTime);
       
       await frame.waitForTimeout(CONFIG.DELAYS.FORM_FILL_DELAY);
       
