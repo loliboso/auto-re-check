@@ -16,7 +16,9 @@
     "auto-punch": "npm run build && node dist/integrated-main-v2.js",
     "auto-punch:headless": "npm run build && node dist/integrated-main-v2.js --headless",
     "check": "echo '🔍 檢查系統環境...' && node --version && npm --version && echo '✅ Node.js 和 npm 運作正常' && npm run build > /dev/null && echo '✅ TypeScript 編譯成功' && echo '🎉 所有檢查都通過！'",
-    "logs": "ls -t logs/ | head -1 | xargs -I {} cat logs/{}"
+    "logs": "ls -t logs/ | head -1 | xargs -I {} cat logs/{}",
+    "deploy": "npm run build:web && firebase deploy --only functions",
+    "firebase:serve": "npm run build:web && firebase emulators:start"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
@@ -38,6 +40,8 @@
     "puppeteer": "^21.11.0",
     "express": "^4.18.2",
     "cors": "^2.8.5",
-    "uuid": "^9.0.1"
+    "uuid": "^9.0.1",
+    "firebase-functions": "^4.5.0",
+    "firebase-admin": "^11.11.0"
   }
 }

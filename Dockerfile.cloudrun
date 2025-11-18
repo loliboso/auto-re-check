@@ -1,0 +1,30 @@
+FROM node:20-slim
+
+# 安裝 Chromium 依賴
+RUN apt-get update && apt-get install -y \
+    chromium \
+    fonts-ipafont-gothic fonts-wqy-zenhei fonts-thai-tlwg fonts-kacst fonts-freefont-ttf \
+    --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+
+# 設定工作目錄
+WORKDIR /app
+
+# 複製 package files
+COPY package*.json ./
+
+# 安裝依賴
+RUN npm ci --only=production
+
+# 複製應用程式碼
+COPY . .
+
+# 設定 Puppeteer 使用系統 Chromium
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+
+# 暴露端口
+EXPOSE 8080
+
+# 啟動應用
+CMD ["node", "dist/web-service.js"]
