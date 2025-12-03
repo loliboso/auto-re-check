@@ -11,6 +11,44 @@ app.use(express.json());
 
 const taskStatus = new Map();
 
+// 診斷 API
+app.get('/api/diagnose', (req, res) => {
+  const fs = require('fs');
+  const { execSync } = require('child_process');
+  
+  const possiblePaths = [
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/snap/bin/chromium'
+  ];
+  
+  const pathsCheck = possiblePaths.map(path => ({
+    path,
+    exists: fs.existsSync(path)
+  }));
+  
+  const whichResults: any = {};
+  ['chromium', 'chromium-browser', 'google-chrome'].forEach(cmd => {
+    try {
+      whichResults[cmd] = execSync(`which ${cmd}`, { encoding: 'utf8' }).trim();
+    } catch (e) {
+      whichResults[cmd] = 'not found';
+    }
+  });
+  
+  res.json({
+    platform: process.platform,
+    env: {
+      PUPPETEER_EXECUTABLE_PATH: process.env.PUPPETEER_EXECUTABLE_PATH || 'not set',
+      NODE_ENV: process.env.NODE_ENV
+    },
+    pathsCheck,
+    whichResults
+  });
+});
+
 // 首頁
 app.get('/', (req, res) => {
   res.send(`
