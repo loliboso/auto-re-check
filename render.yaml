@@ -5,6 +5,7 @@ services:
     region: singapore
     plan: free
     buildCommand: |
+      apt-get update && apt-get install -y chromium chromium-driver
       PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true npm install
       npm run build:web
     startCommand: npm run start:web
