@@ -272,7 +272,10 @@ class IntegratedAutoAttendanceSystemV2 {
       // 根據模式調整啟動參數
       const launchOptions: any = {
         headless: CONFIG.BROWSER.HEADLESS,
-        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || 
+                        (process.platform === 'darwin' 
+                          ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+                          : '/usr/bin/chromium'),
         timeout: 30000,
         args: CONFIG.BROWSER.HEADLESS ? CONFIG.BROWSER.ARGS : [
           '--no-sandbox',
