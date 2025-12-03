@@ -1282,4 +1282,87 @@ if (require.main === module) {
   main();
 }
 
+// Web 服務導出函數
+export async function runAutoPunchCard(config: {
+  companyCode: string;
+  username: string;
+  password: string;
+  dates: string[];
+  headless?: boolean;
+  onProgress?: (message: string) => void;
+}): Promise<{ success: number; failed: number; errors: string[] }> {
+  const { companyCode, username, password, dates, headless = true, onProgress } = config;
+  
+  // 臨時覆蓋 CONFIG
+  const originalHeadless = CONFIG.BROWSER.HEADLESS;
+  CONFIG.BROWSER.HEADLESS = headless;
+  
+  // 建立臨時配置檔案
+  const tempConfig = {
+    companyCode,
+    employeeNo: username,
+    password,
+    attendanceRecords: dates
+  };
+  
+  const tempConfigPath = path.join(__dirname, '../data/temp-user-info.txt');
+  const tempConfigContent = `登入資訊：
+    公司代碼：${companyCode}
+    登入帳號：${username}
+    密碼：${password}
+
+補卡日期：
+${dates.join('\n')}`;
+  
+  fs.writeFileSync(tempConfigPath, tempConfigContent, 'utf-8');
+  
+  try {
+    // 臨時覆蓋配置路徑
+    const originalPath = CONFIG.PATHS.USER_CONFIG;
+    CONFIG.PATHS.USER_CONFIG = tempConfigPath;
+    
+    const system = new IntegratedAutoAttendanceSystemV2();
+    
+    // 如果提供了進度回調，覆蓋 logger
+    if (onProgress) {
+      const originalInfo = system['logger'].info.bind(system['logger']);
+      system['logger'].info = (message: string) => {
+        originalInfo(message);
+        onProgress(message);
+      };
+    }
+    
+    await system.run();
+    
+    // 恢復配置
+    CONFIG.PATHS.USER_CONFIG = originalPath;
+    CONFIG.BROWSER.HEADLESS = originalHeadless;
+    
+    // 清理臨時檔案
+    try {
+      fs.unlinkSync(tempConfigPath);
+    } catch (e) {
+      // 忽略清理錯誤
+    }
+    
+    return {
+      success: dates.length,
+      failed: 0,
+      errors: []
+    };
+  } catch (error) {
+    // 恢復配置
+    CONFIG.BROWSER.HEADLESS = originalHeadless;
+    
+    // 清理臨時檔案
+    try {
+      fs.unlinkSync(tempConfigPath);
+    } catch (e) {
+      // 忽略清理錯誤
+    }
+    
+    throw error;
+  }
+}
+
 export { IntegratedAutoAttendanceSystemV2 };
