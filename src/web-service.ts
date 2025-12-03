@@ -38,6 +38,14 @@ app.get('/api/diagnose', (req, res) => {
     }
   });
   
+  // 列出 /usr/bin 中所有 chrome/chromium 相關檔案
+  let usrBinChrome = [];
+  try {
+    usrBinChrome = execSync('ls -la /usr/bin/ | grep -i chrom', { encoding: 'utf8' }).trim().split('\n');
+  } catch (e) {
+    usrBinChrome = ['none found'];
+  }
+  
   res.json({
     platform: process.platform,
     env: {
@@ -45,7 +53,8 @@ app.get('/api/diagnose', (req, res) => {
       NODE_ENV: process.env.NODE_ENV
     },
     pathsCheck,
-    whichResults
+    whichResults,
+    usrBinChrome
   });
 });
 
