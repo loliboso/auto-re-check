@@ -9,7 +9,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import puppeteer, { Browser, Page, Frame } from 'puppeteer';
+import puppeteer, { Browser, Page, Frame } from 'puppeteer-core';
 
 // === 系統配置 ===
 const CONFIG = {
@@ -272,7 +272,7 @@ class IntegratedAutoAttendanceSystemV2 {
       // 根據模式調整啟動參數
       const launchOptions: any = {
         headless: CONFIG.BROWSER.HEADLESS,
-        executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
         timeout: 30000,
         args: CONFIG.BROWSER.HEADLESS ? CONFIG.BROWSER.ARGS : [
           '--no-sandbox',
